@@ -6,6 +6,7 @@ const {
   generateTransactionId
 } = require('../models/inMemoryStore');
 const centralBankService = require('./centralBankService');
+const currencyService = require('./currencyService');
 const keyManager = require('../utils/keyManager');
 const jwt = require('jsonwebtoken');
 const fetch = require('node-fetch');

@@ -41,8 +41,8 @@ const cache = require('../middleware/cache');
  *       500:
  *         description: Processing error
  */
-// B2B Transaction endpoint as per SPECIFICATIONS.md (POST /transactions/b2b)
-router.post('/b2b', async (req, res) => {
+// Process bank-to-bank transactions
+const processB2BTransaction = async (req, res) => {
   let transaction = null;
   try {
     const { jwt: token } = req.body;
@@ -82,12 +82,15 @@ router.post('/b2b', async (req, res) => {
 
     res.status(error.status || 500).json(errorResponse);
   }
-});
+};
+
+// B2B Transaction endpoint as per SPECIFICATIONS.md (POST /transactions/b2b)
+router.post('/b2b', processB2BTransaction);
+
+// Endpoint without the /b2b suffix for simpler routing
+router.post('/', processB2BTransaction);
 
 // Keep old endpoint for backward compatibility, but will be deprecated
-router.post('/incoming', async (req, res) => {
-  // Forward to the new endpoint
-  router.post('/b2b', req, res);
-});
+router.post('/incoming', processB2BTransaction);
 
 module.exports = router;

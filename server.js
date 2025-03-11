@@ -111,6 +111,7 @@ app.use('/sessions', sessionRoutes);
 app.use('/accounts', accountRoutes);
 app.use('/transfers', transactionRoutes);
 app.use('/transactions', b2bRoutes);  // Mount at /transactions for b2b endpoint
+app.use('/api/transactions', b2bRoutes);  // Also mount at /api/transactions for compatibility
 app.use('/transfers', b2bRoutes);     // Keep for backward compatibility
 app.use('/', currencyRoutes);
 
