@@ -20,7 +20,6 @@ const transactionRoutes = require('./routes/transactions');
 const b2bRoutes = require('./routes/b2b');
 const infoRoute = require('./routes/info');
 const currencyRoutes = require('./routes/currency');
-const debugRoutes = require('./routes/debug'); // Add this line
 
 // Create express app
 const app = express();
