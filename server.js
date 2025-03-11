@@ -75,9 +75,30 @@ app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'success', 
     message: 'API is operational',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    bankPrefix: process.env.BANK_PREFIX || 'undefined',
+    bankName: process.env.BANK_NAME || 'undefined'
   });
 });
+
+// Add special debugging endpoint for development mode
+if (process.env.NODE_ENV === 'development') {
+  app.get('/debug/banks/:prefix', async (req, res) => {
+    try {
+      const centralBankService = require('./services/centralBankService');
+      const bankDetails = await centralBankService.getBankDetails(req.params.prefix);
+      res.json({
+        status: 'success',
+        data: bankDetails || null
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+  });
+}
 
 // Configure Express to trust proxy headers
 // This is needed because we're behind Nginx

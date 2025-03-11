@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
+const centralBankService = require('../services/centralBankService');
 
 /**
  * @swagger
@@ -32,5 +33,60 @@ router.get('/', authenticate, (req, res) => {
     prefix: process.env.BANK_PREFIX || '353'
   });
 });
+
+/**
+ * Debug endpoint to look up bank details
+ * Only available in development mode
+ */
+if (process.env.NODE_ENV === 'development') {
+  router.get('/lookup/:prefix', authenticate, async (req, res) => {
+    try {
+      const bankPrefix = req.params.prefix;
+      console.log(`Manual bank lookup request for prefix: ${bankPrefix}`);
+      
+      // Force refresh to get the latest data
+      const bankDetails = await centralBankService.getBankDetails(bankPrefix, true);
+      
+      if (!bankDetails) {
+        return res.status(404).json({
+          status: 'error', 
+          message: `No bank found with prefix ${bankPrefix}`
+        });
+      }
+      
+      res.json({
+        status: 'success',
+        data: bankDetails
+      });
+    } catch (error) {
+      console.error('Error during manual bank lookup:', error);
+      res.status(500).json({
+        status: 'error',
+        message: `Bank lookup failed: ${error.message}`
+      });
+    }
+  });
+  
+  // Get all banks endpoint
+  router.get('/all-banks', authenticate, async (req, res) => {
+    try {
+      console.log('Requesting all banks from central bank');
+      // Force refresh to get the latest data
+      const banks = await centralBankService.getAllBanks(true);
+      
+      res.json({
+        status: 'success',
+        count: banks.length,
+        data: banks
+      });
+    } catch (error) {
+      console.error('Error fetching all banks:', error);
+      res.status(500).json({
+        status: 'error',
+        message: `Failed to fetch banks: ${error.message}`
+      });
+    }
+  });
+}
 
 module.exports = router;

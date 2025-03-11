@@ -344,18 +344,24 @@ router.post(
       transactions.push(transaction);
 
       try {
-        // Get destination bank details
+        console.log(`Looking up bank with prefix: ${bankPrefix}`);
+        
+        // Get destination bank details from central bank
         const bankDetails = await centralBankService.getBankDetails(bankPrefix);
         
         if (!bankDetails) {
           transaction.status = 'failed';
           transaction.errorMessage = 'Destination bank not found';
           
+          console.error(`No bank found with prefix ${bankPrefix}`);
           return res.status(404).json({
             status: 'error',
             message: 'Destination bank not found'
           });
         }
+        
+        console.log(`Found bank: ${bankDetails.name} (${bankDetails.bankPrefix})`);
+        console.log(`Transaction URL: ${bankDetails.transactionUrl}`);
 
         // Update transaction status to in-progress
         transaction.status = 'inProgress';
@@ -370,36 +376,29 @@ router.post(
           senderName: sourceUser.fullName
         };
 
-        // Sign the payload
-        const signature = keyManager.sign(payload);
+        // Sign the payload with our private key
+        const jwtToken = keyManager.sign(payload);
         
-        // Create JWT
-        const jwtToken = jwt.sign(
-          { ...payload },
-          { key: keyManager.getPrivateKey(), passphrase: '' },
-          { 
-            algorithm: 'RS256',
-            header: {
-              alg: 'RS256',
-              kid: '1'
-            }
-          }
-        );
-
+        console.log(`Sending transaction to ${bankDetails.transactionUrl}`);
+        
         // Send to destination bank's B2B endpoint
         const response = await fetch(bankDetails.transactionUrl, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
           body: JSON.stringify({ jwt: jwtToken })
         });
 
         if (!response.ok) {
-          throw new Error(`Destination bank responded with status: ${response.status}`);
+          const errorText = await response.text();
+          console.error(`Destination bank responded with error: ${response.status}`, errorText);
+          throw new Error(`Destination bank responded with status: ${response.status} - ${errorText}`);
         }
 
         const result = await response.json();
+        console.log(`Transaction successful:`, result);
         
         // Update receiver name if provided
         if (result && result.receiverName) {

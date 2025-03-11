@@ -3,9 +3,6 @@ info:
   title: Bank API
   version: 1.0.0
   description: Bank API with interoperability features
-  contact:
-    name: API Support
-    email: support@eerovallistu.site
 
 servers:
   - url: /
