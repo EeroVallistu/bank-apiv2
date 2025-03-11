@@ -332,50 +332,30 @@ sessionRouter.post(
 
 /**
  * @swagger
- * /sessions/{token}:
+ * /sessions/logout:
  *   delete:
- *     summary: Logout user (invalidate session token)
+ *     summary: Logout current user
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: token
- *         schema:
- *           type: string
- *         required: true
- *         description: Session token to invalidate
  *     responses:
  *       200:
  *         description: User logged out successfully
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  */
-sessionRouter.delete('/:token', authenticate, async (req, res) => {
-  try {
-    // Get user
-    const user = findUserById(req.user.id);
-    
-    // Remove current token from sessions
-    user.sessions = user.sessions.filter(session => session.token !== req.token);
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Logout successful',
-    });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error during logout',
-    });
-  }
-});
-
 sessionRouter.delete('/logout', authenticate, async (req, res) => {
   try {
-    const user = findUserById(req.user.id);
-    user.sessions = user.sessions.filter(s => s.token !== req.token);
+    // Get user
+    const user = await User.findByPk(req.user.id);
+    
+    // Remove session from database
+    await Session.destroy({
+      where: {
+        userId: user.id,
+        token: req.token
+      }
+    });
     
     res.json({
       status: 'success',

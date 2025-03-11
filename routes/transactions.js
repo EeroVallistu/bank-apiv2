@@ -14,6 +14,7 @@ const {
 const keyManager = require('../utils/keyManager');
 const centralBankService = require('../services/centralBankService');
 const fetch = require('node-fetch');
+const currencyService = require('../services/currencyService');
 
 const router = express.Router();
 
@@ -180,6 +181,19 @@ router.post(
         });
       }
 
+      // Convert amount if currencies are different
+      let convertedAmount = parseFloat(amount);
+      let exchangeRate = 1;
+      
+      if (sourceAccount.currency !== destinationAccount.currency) {
+        convertedAmount = await currencyService.convert(
+          amount,
+          sourceAccount.currency,
+          destinationAccount.currency
+        );
+        exchangeRate = convertedAmount / amount;
+      }
+
       // Check if source account has sufficient funds
       if (sourceAccount.balance < amount) {
         return res.status(402).json({
@@ -198,28 +212,25 @@ router.post(
         id: generateTransactionId(),
         fromAccount,
         toAccount,
-        amount,
-        currency: sourceAccount.currency,
+        amount: convertedAmount,
+        originalAmount: parseFloat(amount),
+        originalCurrency: sourceAccount.currency,
+        currency: destinationAccount.currency,
+        exchangeRate,
         explanation,
         senderName: sourceUser.fullName,
         receiverName: destinationUser.fullName,
         isExternal: false,
-        status: 'pending',
+        status: 'completed',
         createdAt: new Date().toISOString()
       };
 
-      // Add transaction to store
-      transactions.push(transaction);
-
-      // Update transaction status to in-progress
-      transaction.status = 'inProgress';
-
       // Update balances
       sourceAccount.balance -= parseFloat(amount);
-      destinationAccount.balance += parseFloat(amount);
+      destinationAccount.balance += convertedAmount;
 
-      // Complete the transaction
-      transaction.status = 'completed';
+      // Add transaction to store
+      transactions.push(transaction);
 
       res.status(201).json({
         status: 'success',
@@ -331,7 +342,10 @@ router.post(
         fromAccount,
         toAccount,
         amount: parseFloat(amount),
+        originalAmount: parseFloat(amount),
+        originalCurrency: sourceAccount.currency,
         currency: sourceAccount.currency,
+        exchangeRate: 1, // Will be updated by receiving bank
         explanation,
         senderName: sourceUser.fullName,
         bankPrefix,
@@ -373,7 +387,8 @@ router.post(
           currency: sourceAccount.currency,
           amount,
           explanation,
-          senderName: sourceUser.fullName
+          senderName: sourceUser.fullName,
+          originalCurrency: sourceAccount.currency
         };
 
         // Sign the payload with our private key

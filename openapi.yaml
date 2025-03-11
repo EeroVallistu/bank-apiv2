@@ -34,7 +34,7 @@ components:
           description: Current account balance
         currency:
           type: string
-          enum: [EUR, USD, GBP]
+          enum: [EUR, USD, GBP, SEK]
           description: Account currency
         name:
           type: string
@@ -235,7 +235,7 @@ paths:
   /sessions:
     post:
       summary: Login user
-      tags: [Users]
+      tags: [Sessions]
       security: []
       requestBody:
         required: true
@@ -289,39 +289,9 @@ paths:
                   message:
                     type: string
                     example: Invalid credentials
-
-  /sessions/{token}:
-    delete:
-      summary: Logout user (invalidate session token)
-      tags: [Users]
-      parameters:
-        - in: path
-          name: token
-          schema:
-            type: string
-          required: true
-          description: Session token to invalidate
-      responses:
-        '200':
-          description: User logged out successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  message:
-                    type: string
-                    example: Logout successful
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
-  /sessions/logout:
     delete:
       summary: Logout current user
-      tags: [Users]
+      tags: [Sessions]
       responses:
         '200':
           description: User logged out successfully
@@ -388,7 +358,7 @@ paths:
               properties:
                 currency:
                   type: string
-                  enum: [EUR, USD, GBP]
+                  enum: [EUR, USD, GBP, SEK]
                   example: EUR
                 name:
                   type: string
@@ -808,3 +778,64 @@ paths:
                     example: 353
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+
+  /exchange-rates:
+    get:
+      summary: Get current exchange rates
+      tags: [Currency]
+      parameters:
+        - in: query
+          name: base
+          required: true
+          schema:
+            type: string
+            enum: [EUR, USD, GBP, SEK]
+          description: Base currency
+        - in: query
+          name: target
+          required: false
+          schema:
+            type: string
+            enum: [EUR, USD, GBP, SEK]
+          description: Target currency (optional - if not provided returns all rates)
+      responses:
+        '200':
+          description: Current exchange rates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  base:
+                    type: string
+                    example: EUR
+                  timestamp:
+                    type: string
+                    format: date-time
+                  rates:
+                    type: object
+                    example:
+                      USD: 1.09
+                      GBP: 0.86
+                      SEK: 11.21
+        '400':
+          description: Invalid currency
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: error
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        msg:
+                          type: string
+                          example: Base currency must be EUR, USD, GBP, or SEK

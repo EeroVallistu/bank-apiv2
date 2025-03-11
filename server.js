@@ -19,6 +19,7 @@ const accountRoutes = require('./routes/accounts');
 const transactionRoutes = require('./routes/transactions');
 const b2bRoutes = require('./routes/b2b');
 const infoRoute = require('./routes/info');
+const currencyRoutes = require('./routes/currency');
 
 // Create express app
 const app = express();
@@ -111,6 +112,7 @@ app.use('/accounts', accountRoutes);
 app.use('/transfers', transactionRoutes);
 app.use('/transactions', b2bRoutes);  // Mount at /transactions for b2b endpoint
 app.use('/transfers', b2bRoutes);     // Keep for backward compatibility
+app.use('/', currencyRoutes);
 
 // Add bank info route
 app.use('/bank-info', infoRoute);

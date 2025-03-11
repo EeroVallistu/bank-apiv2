@@ -38,13 +38,29 @@ class TransactionService {
       throw error;
     }
 
-    // Create a transaction record
+    // Convert currency if needed
+    let amount = parseFloat(payload.amount);
+    let exchangeRate = 1;
+    
+    if (payload.currency !== destinationAccount.currency) {
+      amount = await currencyService.convert(
+        payload.amount,
+        payload.currency,
+        destinationAccount.currency
+      );
+      exchangeRate = amount / parseFloat(payload.amount);
+    }
+
+    // Create transaction record with currency info
     const transaction = {
       id: generateTransactionId(),
       fromAccount: payload.accountFrom,
       toAccount: payload.accountTo,
-      amount: parseFloat(payload.amount),
-      currency: payload.currency,
+      amount,
+      originalAmount: parseFloat(payload.amount),
+      originalCurrency: payload.currency,
+      currency: destinationAccount.currency,
+      exchangeRate,
       explanation: payload.explanation,
       senderName: payload.senderName,
       receiverName: destinationUser.fullName,
@@ -53,8 +69,8 @@ class TransactionService {
       createdAt: new Date().toISOString()
     };
 
-    // Credit the destination account
-    destinationAccount.balance += transaction.amount;
+    // Credit the destination account with converted amount
+    destinationAccount.balance += amount;
     
     // Add transaction to store
     transactions.push(transaction);

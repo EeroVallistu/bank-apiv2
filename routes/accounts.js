@@ -221,7 +221,7 @@ router.get('/', [
  *             properties:
  *               currency:
  *                 type: string
- *                 enum: [EUR, USD, GBP]
+ *                 enum: [EUR, USD, GBP, SEK]
  *               name:
  *                 type: string
  *     responses:
@@ -246,8 +246,8 @@ router.post(
   '/',
   [
     body('currency')
-      .isIn(['EUR', 'USD', 'GBP'])
-      .withMessage('Currency must be EUR, USD, or GBP'),
+      .isIn(['EUR', 'USD', 'GBP', 'SEK'])
+      .withMessage('Currency must be EUR, USD, GBP, or SEK'),
     body('name')
       .notEmpty()
       .withMessage('Account name is required')
