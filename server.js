@@ -79,6 +79,10 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Configure Express to trust proxy headers
+// This is needed because we're behind Nginx
+app.set('trust proxy', 1);
+
 // Apply API routes
 app.use('/users', userRoutes);
 app.use('/sessions', sessionRoutes);
