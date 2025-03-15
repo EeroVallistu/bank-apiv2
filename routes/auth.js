@@ -330,6 +330,36 @@ sessionRouter.post(
   }
 );
 
+// Add this route to handle DELETE /sessions
+sessionRouter.delete('/', authenticate, async (req, res) => {
+  try {
+    const user = findUserById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found',
+      });
+    }
+
+    // Remove the current session token
+    if (user.sessions) {
+      user.sessions = user.sessions.filter(session => session.token !== req.token);
+    }
+    
+    res.json({
+      status: 'success',
+      message: 'Successfully logged out'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error during logout',
+    });
+  }
+});
+
 /**
  * @swagger
  * /sessions/logout:
@@ -346,16 +376,19 @@ sessionRouter.post(
  */
 sessionRouter.delete('/logout', authenticate, async (req, res) => {
   try {
-    // Get user
-    const user = await User.findByPk(req.user.id);
+    const user = findUserById(req.user.id);
     
-    // Remove session from database
-    await Session.destroy({
-      where: {
-        userId: user.id,
-        token: req.token
-      }
-    });
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found',
+      });
+    }
+
+    // Remove the current session token
+    if (user.sessions) {
+      user.sessions = user.sessions.filter(session => session.token !== req.token);
+    }
     
     res.json({
       status: 'success',
