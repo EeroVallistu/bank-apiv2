@@ -71,6 +71,9 @@ class CentralBankService {
       
       console.log('Re-registration data:', registrationData);
       
+      // Store the old bank prefix for later comparison
+      const oldBankPrefix = process.env.BANK_PREFIX;
+      
       // Call the registration method
       const result = await this.registerBank(registrationData);
       
@@ -86,8 +89,15 @@ class CentralBankService {
         if (fs.existsSync(envPath)) {
           let envContent = fs.readFileSync(envPath, 'utf8');
           
+          // Check if the bank prefix has changed
+          let prefixChanged = false;
+          
           // Update BANK_PREFIX if provided
           if (result.bankPrefix) {
+            if (result.bankPrefix !== oldBankPrefix) {
+              prefixChanged = true;
+            }
+            
             if (envContent.includes('BANK_PREFIX=')) {
               envContent = envContent.replace(/BANK_PREFIX=.*(\r?\n|$)/g, `BANK_PREFIX=${result.bankPrefix}$1`);
             } else {
@@ -111,6 +121,12 @@ class CentralBankService {
           // Also update process.env for the current process
           if (result.bankPrefix) process.env.BANK_PREFIX = result.bankPrefix;
           if (result.apiKey) process.env.API_KEY = result.apiKey;
+          
+          // Update all account numbers if the prefix has changed
+          if (prefixChanged && oldBankPrefix) {
+            console.log(`Bank prefix changed from ${oldBankPrefix} to ${result.bankPrefix}. Updating account numbers...`);
+            await this.updateAllAccountNumbers(oldBankPrefix, result.bankPrefix);
+          }
         } else {
           console.warn('.env file not found, could not update environment variables');
         }
@@ -122,6 +138,62 @@ class CentralBankService {
     } catch (error) {
       console.error('Error re-registering bank:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Update all account numbers when the bank prefix changes
+   * @param {string} oldPrefix The old bank prefix
+   * @param {string} newPrefix The new bank prefix
+   */
+  async updateAllAccountNumbers(oldPrefix, newPrefix) {
+    try {
+      // Get access to the in-memory store
+      const { accounts, transactions } = require('../models/inMemoryStore');
+      
+      // Keep track of account number mapping for transaction updates
+      const accountMapping = {};
+      
+      // Update all account numbers in accounts array
+      for (const account of accounts) {
+        // Only update accounts with our bank prefix
+        if (account.accountNumber.startsWith(oldPrefix)) {
+          const oldAccountNumber = account.accountNumber;
+          // Replace the prefix at the beginning of the account number
+          account.accountNumber = newPrefix + account.accountNumber.substring(oldPrefix.length);
+          
+          // Store the mapping for transaction updates
+          accountMapping[oldAccountNumber] = account.accountNumber;
+          
+          console.log(`Updated account ${oldAccountNumber} to ${account.accountNumber}`);
+        }
+      }
+      
+      // Update all transaction references to these accounts
+      let transactionsUpdated = 0;
+      for (const transaction of transactions) {
+        // Check and update fromAccount
+        if (accountMapping[transaction.fromAccount]) {
+          transaction.fromAccount = accountMapping[transaction.fromAccount];
+          transactionsUpdated++;
+        }
+        
+        // Check and update toAccount
+        if (accountMapping[transaction.toAccount]) {
+          transaction.toAccount = accountMapping[transaction.toAccount];
+          transactionsUpdated++;
+        }
+      }
+      
+      console.log(`Updated ${Object.keys(accountMapping).length} accounts and ${transactionsUpdated} transaction references`);
+      
+      return {
+        accountsUpdated: Object.keys(accountMapping).length,
+        transactionsUpdated
+      };
+    } catch (error) {
+      console.error('Error updating account numbers:', error);
+      throw new Error(`Failed to update account numbers: ${error.message}`);
     }
   }
 
