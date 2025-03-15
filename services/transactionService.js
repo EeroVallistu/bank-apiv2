@@ -10,6 +10,12 @@ const currencyService = require('./currencyService');
 const keyManager = require('../utils/keyManager');
 const jwt = require('jsonwebtoken');
 const fetch = require('node-fetch');
+const { 
+  NotFoundError, 
+  ValidationError, 
+  AuthenticationError, 
+  APIError 
+} = require('../utils/errors');
 
 /**
  * Service for handling transactions between banks
@@ -24,19 +30,19 @@ class TransactionService {
     // Validate destination account exists
     const destinationAccount = findAccountByNumber(payload.accountTo);
     if (!destinationAccount) {
-      const error = new Error('Destination account not found');
-      error.status = 404;
-      error.code = 'ACCOUNT_NOT_FOUND';
-      throw error;
+      throw new NotFoundError(
+        'Account',
+        `Destination account ${payload.accountTo} not found`
+      );
     }
 
     // Find the destination account owner
     const destinationUser = findUserById(destinationAccount.userId);
     if (!destinationUser) {
-      const error = new Error('Destination account owner not found');
-      error.status = 404;
-      error.code = 'USER_NOT_FOUND';
-      throw error;
+      throw new NotFoundError(
+        'User', 
+        'Destination account owner not found'
+      );
     }
 
     // Convert currency if needed
@@ -44,12 +50,20 @@ class TransactionService {
     let exchangeRate = 1;
     
     if (payload.currency !== destinationAccount.currency) {
-      amount = await currencyService.convert(
-        payload.amount,
-        payload.currency,
-        destinationAccount.currency
-      );
-      exchangeRate = amount / parseFloat(payload.amount);
+      try {
+        amount = await currencyService.convert(
+          payload.amount,
+          payload.currency,
+          destinationAccount.currency
+        );
+        exchangeRate = amount / parseFloat(payload.amount);
+      } catch (error) {
+        throw new APIError(
+          `Currency conversion failed: ${error.message}`,
+          500,
+          'CURRENCY_CONVERSION_FAILED'
+        );
+      }
     }
 
     // Create transaction record with currency info
@@ -93,10 +107,7 @@ class TransactionService {
       const decoded = jwt.decode(token, { complete: true });
       
       if (!decoded || !decoded.header || !decoded.payload) {
-        const error = new Error('Invalid JWT format');
-        error.status = 400;
-        error.code = 'INVALID_JWT_FORMAT';
-        throw error;
+        throw new ValidationError('Invalid JWT format');
       }
 
       // Validate required fields in payload
@@ -105,22 +116,33 @@ class TransactionService {
         'amount', 'explanation', 'senderName'
       ];
       
+      const missingFields = [];
       for (const field of requiredFields) {
         if (!decoded.payload[field]) {
-          const error = new Error(`Missing required field: ${field}`);
-          error.status = 400;
-          error.code = 'MISSING_REQUIRED_FIELD';
-          throw error;
+          missingFields.push(field);
         }
+      }
+      
+      if (missingFields.length > 0) {
+        throw new ValidationError(
+          `Missing required fields: ${missingFields.join(', ')}`,
+          missingFields.map(field => ({
+            param: field,
+            msg: `The ${field} field is required`,
+            location: 'body'
+          }))
+        );
       }
 
       return decoded;
     } catch (error) {
-      if (!error.status) {
-        error.status = 400;
-        error.code = 'JWT_PARSING_ERROR';
+      if (error instanceof APIError) {
+        throw error;
       }
-      throw error;
+      
+      throw new ValidationError(
+        `JWT parsing error: ${error.message}`
+      );
     }
   }
 
@@ -138,10 +160,10 @@ class TransactionService {
       const bankDetails = await centralBankService.getBankDetails(senderBankPrefix);
       
       if (!bankDetails) {
-        const error = new Error(`Bank with prefix ${senderBankPrefix} not found`);
-        error.status = 404;
-        error.code = 'BANK_NOT_FOUND';
-        throw error;
+        throw new NotFoundError(
+          'Bank', 
+          `Bank with prefix ${senderBankPrefix} not found`
+        );
       }
 
       // Fetch the sender bank's public key from their JWKS endpoint
@@ -149,11 +171,15 @@ class TransactionService {
       
       return publicKey;
     } catch (error) {
-      if (!error.status) {
-        error.status = 502;
-        error.code = 'BANK_VALIDATION_ERROR';
+      if (error instanceof APIError) {
+        throw error;
       }
-      throw error;
+      
+      throw new APIError(
+        `Bank validation error: ${error.message}`,
+        502,
+        'BANK_VALIDATION_ERROR'
+      );
     }
   }
 
@@ -168,39 +194,38 @@ class TransactionService {
       const response = await fetch(jwksUrl);
       
       if (!response.ok) {
-        const error = new Error(`Failed to fetch JWKS: ${response.status}`);
-        error.status = 502;
-        error.code = 'JWKS_FETCH_ERROR';
-        throw error;
+        throw new APIError(
+          `Failed to fetch JWKS: ${response.status}`,
+          502,
+          'JWKS_FETCH_ERROR'
+        );
       }
 
       const jwks = await response.json();
       
       if (!jwks || !jwks.keys || !Array.isArray(jwks.keys) || jwks.keys.length === 0) {
-        const error = new Error('Invalid JWKS format');
-        error.status = 502;
-        error.code = 'INVALID_JWKS_FORMAT';
-        throw error;
+        throw new ValidationError('Invalid JWKS format');
       }
 
       // Find the key with the matching kid
       const key = jwks.keys.find(k => k.kid === keyId);
       
       if (!key) {
-        const error = new Error(`Key ID ${keyId} not found in JWKS`);
-        error.status = 400;
-        error.code = 'KEY_NOT_FOUND';
-        throw error;
+        throw new ValidationError(`Key ID ${keyId} not found in JWKS`);
       }
 
       // Convert JWK to PEM format
       return this.jwkToPem(key);
     } catch (error) {
-      if (!error.status) {
-        error.status = 502;
-        error.code = 'PUBLIC_KEY_FETCH_ERROR';
+      if (error instanceof APIError) {
+        throw error;
       }
-      throw error;
+      
+      throw new APIError(
+        `Public key fetch error: ${error.message}`,
+        502,
+        'PUBLIC_KEY_FETCH_ERROR'
+      );
     }
   }
 
@@ -218,10 +243,11 @@ class TransactionService {
       const publicKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });
       return publicKey.export({ type: 'spki', format: 'pem' });
     } catch (error) {
-      const customError = new Error('Error converting JWK to PEM: ' + error.message);
-      customError.status = 500;
-      customError.code = 'JWK_TO_PEM_ERROR';
-      throw customError;
+      throw new APIError(
+        `Error converting JWK to PEM: ${error.message}`,
+        500,
+        'JWK_TO_PEM_ERROR'
+      );
     }
   }
 
@@ -235,33 +261,7 @@ class TransactionService {
     try {
       return jwt.verify(token, publicKey, { algorithms: ['RS256'] });
     } catch (error) {
-      const customError = new Error('JWT signature verification failed: ' + error.message);
-      customError.status = 401;
-      customError.code = 'JWT_SIGNATURE_INVALID';
-      throw customError;
-    }
-  }
-
-  /**
-   * Handle errors in incoming transaction processing
-   * @param {Object} transaction Transaction object
-   * @param {Error} error Error that occurred
-   */
-  async handleIncomingTransactionError(transaction, error) {
-    console.error('Error processing incoming transaction:', error);
-    
-    // Update transaction status if it exists
-    if (transaction) {
-      transaction.status = 'failed';
-      transaction.errorMessage = error.message;
-    }
-    
-    // Return error with proper code and status
-    if (!error.status) {
-      error.status = 500;
-    }
-    if (!error.code) {
-      error.code = 'TRANSACTION_PROCESSING_ERROR';
+      throw new AuthenticationError(`JWT signature verification failed: ${error.message}`);
     }
   }
 }

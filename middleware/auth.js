@@ -1,30 +1,33 @@
 const jwt = require('jsonwebtoken');
 const { findUserById } = require('../models/inMemoryStore');
+const { AuthenticationError } = require('../utils/errors');
 
 const authenticate = (req, res, next) => {
   try {
     // Get token from Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Authentication required'
-      });
+      throw new AuthenticationError('Authentication token required');
     }
 
     const token = authHeader.split(' ')[1];
     
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        throw new AuthenticationError('Token expired');
+      }
+      throw new AuthenticationError('Invalid token');
+    }
     
     // Get user
     const user = findUserById(decoded.userId);
     
     if (!user) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'User not found'
-      });
+      throw new AuthenticationError('User not found');
     }
     
     // Check if token exists in user's sessions
@@ -33,10 +36,7 @@ const authenticate = (req, res, next) => {
     );
     
     if (!sessionExists) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Session invalid or expired'
-      });
+      throw new AuthenticationError('Session invalid or expired');
     }
     
     // Add user info to request
@@ -48,11 +48,7 @@ const authenticate = (req, res, next) => {
     
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
-    res.status(401).json({
-      status: 'error',
-      message: 'Authentication failed: ' + error.message
-    });
+    next(error);
   }
 };
 

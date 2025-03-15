@@ -9,6 +9,7 @@ const path = require('path');
 
 // Import middleware
 const cache = require('./middleware/cache');
+const errorHandler = require('./middleware/errorHandler');
 
 // Import in-memory data store
 const dataStore = require('./models/inMemoryStore');
@@ -36,166 +37,73 @@ app.use(express.static('public'));
 // Security middleware
 app.use(helmet());
 
-// Rate limiting
-const apiLimiter = rateLimit({
+// Rate limiting to prevent abuse
+const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
+  max: 200, // limit each IP to 200 requests per windowMs
   message: {
     status: 'error',
+    code: 'RATE_LIMIT_EXCEEDED',
     message: 'Too many requests, please try again later.'
   }
 });
+app.use(limiter);
 
-// Apply rate limiting to all requests
-app.use(apiLimiter);
+// CORS middleware
+app.use(cors());
 
-// Middleware
-app.use(cors({
-  origin: [
-    'http://localhost:5000',                  // Local development
-    'https://bank.eerovallistu.site',        // Production domain
-    'http://bank.eerovallistu.site'          // Production domain HTTP
-  ],
-  credentials: true,                         // Allow credentials (cookies, auth headers)
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-app.options('*', cors()); // Enable pre-flight for all routes
-
+// Parse JSON request body
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Load OpenAPI specification
-const swaggerDocument = YAML.load(path.join(__dirname, 'openapi.yaml'));
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+// Load and serve Swagger documentation
+const swaggerDocument = YAML.load(path.join(__dirname, './openapi.yaml'));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// API status endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'success', 
-    message: 'API is operational',
-    timestamp: new Date().toISOString(),
-    bankPrefix: process.env.BANK_PREFIX || 'undefined',
-    bankName: process.env.BANK_NAME || 'undefined'
-  });
-});
-
-// Add special debugging endpoint for development mode
-if (process.env.NODE_ENV === 'development') {
-  app.get('/debug/banks/:prefix', async (req, res) => {
-    try {
-      const centralBankService = require('./services/centralBankService');
-      const bankDetails = await centralBankService.getBankDetails(req.params.prefix);
-      res.json({
-        status: 'success',
-        data: bankDetails || null
-      });
-    } catch (error) {
-      res.status(500).json({
-        status: 'error',
-        message: error.message
-      });
-    }
-  });
-
-  // Debug endpoint to manually trigger bank re-registration
-  app.get('/debug/register-bank', async (req, res) => {
-    try {
-      const centralBankService = require('./services/centralBankService');
-      const result = await centralBankService.reRegisterBank();
-      res.json({
-        status: 'success',
-        data: result
-      });
-    } catch (error) {
-      res.status(500).json({
-        status: 'error',
-        message: error.message
-      });
-    }
-  });
-}
-
-// Configure Express to trust proxy headers
-// This is needed because we're behind Nginx
-app.set('trust proxy', 1);
-
-// Apply API routes
+// API routes
 app.use('/users', userRoutes);
 app.use('/sessions', sessionRoutes);
 app.use('/accounts', accountRoutes);
 app.use('/transfers', transactionRoutes);
-app.use('/transactions', b2bRoutes);  // Mount at /transactions for b2b endpoint
-app.use('/api/transactions', b2bRoutes);  // Also mount at /api/transactions for compatibility
-app.use('/transfers', b2bRoutes);     // Keep for backward compatibility
+app.use('/transactions', b2bRoutes);
+app.use('/bank-info', infoRoute);
 app.use('/', currencyRoutes);
 
-// Add bank info route
-app.use('/bank-info', infoRoute);
-
-// Periodically check if our bank is registered with central bank
-// This helps ensure we're always registered even if deleted
-if (process.env.BANK_PREFIX) {
-  const checkRegistration = async () => {
-    try {
-      const centralBankService = require('./services/centralBankService');
-      await centralBankService.getBankDetails(process.env.BANK_PREFIX, true);
-      console.log('Bank registration check completed');
-    } catch (error) {
-      console.error('Error checking bank registration:', error);
-    }
-  };
-  
-  // Check on startup and then every 30 minutes
-  setTimeout(checkRegistration, 10000); // 10 seconds after startup
-  setInterval(checkRegistration, 30 * 60 * 1000); // Every 30 minutes
-}
-
-// Make sure this endpoint is accessible at the correct URL
-// It needs to match the URL registered with the central bank
-app.get('/jwks.json', cache('5 minutes'), (req, res) => {
+// JWKS endpoint for other banks
+app.get('/jwks.json', (req, res) => {
   try {
     const keyManager = require('./utils/keyManager');
-    // Ensure keys exist
-    keyManager.ensureKeysExist();
-    // Get JWKS representation
-    const jwks = keyManager.getJwks();
-    res.set('Cache-Control', 'public, max-age=300');
-    res.status(200).json(jwks);
+    res.json(keyManager.getJwks());
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: 'Error retrieving JWKS',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    next(error);
   }
 });
 
-// 404 handler for undefined routes
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'success',
+    message: 'API is operational',
+    timestamp: new Date()
+  });
+});
+
+// 404 handler - this runs if no route matches
 app.use((req, res, next) => {
-  res.status(404).json({
-    status: 'error',
-    message: `Cannot ${req.method} ${req.originalUrl}`
-  });
+  const err = new Error(`Not Found - ${req.originalUrl}`);
+  err.status = 404;
+  err.code = 'NOT_FOUND';
+  next(err);
 });
 
-// Error handler middleware
-app.use((err, req, res, next) => {
-  console.error('Global error handler:', err);
-  res.status(err.status || 500).json({
-    status: 'error',
-    message: err.message || 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err : undefined
-  });
+// Global error handler - must be last middleware
+app.use(errorHandler);
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`API Documentation: http://localhost:${PORT}/api-docs`);
+  console.log(`Environment: ${process.env.NODE_ENV}`);
 });
 
-// Start the server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-  console.log('Try making a test request to /health endpoint');
-  console.log(`API documentation available at http://localhost:${PORT}/docs`);
-});
-
-module.exports = app; // Export for testing
+module.exports = app;

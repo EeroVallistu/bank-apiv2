@@ -8,6 +8,11 @@ const {
   generateAccountId, 
   generateAccountNumber 
 } = require('../models/inMemoryStore');
+const { 
+  NotFoundError, 
+  ValidationError,
+  errorUtils
+} = require('../utils/errors');
 
 const router = express.Router();
 
@@ -93,8 +98,14 @@ router.use(authenticate);
 router.get('/', [
   query('currency').optional().isIn(['EUR', 'USD', 'GBP']).withMessage('Invalid currency'),
   query('sort').optional().isString().withMessage('Invalid sort parameter')
-], async (req, res) => {
+], async (req, res, next) => {
   try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new ValidationError('Invalid query parameters', errors.array());
+    }
+
     if (!req.user?.id) {
       throw new Error('User ID not found in request');
     }
@@ -136,12 +147,7 @@ router.get('/', [
       data: userAccounts || []
     });
   } catch (error) {
-    console.error('Error in GET /accounts:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to fetch accounts',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
+    next(error);
   }
 });
 
@@ -255,16 +261,12 @@ router.post(
       .withMessage('Account name must be between 2 and 50 characters')
       .trim()
   ],
-  async (req, res) => {
+  async (req, res, next) => {
     try {
       // Validate input
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ 
-          status: 'error', 
-          message: errors.array()[0].msg,
-          errors: errors.array() 
-        });
+        throw new ValidationError('Invalid account data', errors.array());
       }
 
       const { currency, name } = req.body;
@@ -292,11 +294,7 @@ router.post(
         message: 'Account created successfully'
       });
     } catch (error) {
-      console.error('Error creating account:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Error creating account: ' + error.message
-      });
+      next(error);
     }
   }
 );
@@ -333,16 +331,17 @@ router.post(
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  */
-router.get('/:accountNumber', async (req, res) => {
+router.get('/:accountNumber', async (req, res, next) => {
   try {
     const account = findAccountByNumber(req.params.accountNumber);
     
     // Check if account exists and belongs to the user
-    if (!account || account.userId !== req.user.id) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Account not found'
-      });
+    if (!account) {
+      throw new NotFoundError('Account');
+    }
+
+    if (account.userId !== req.user.id) {
+      throw new NotFoundError('Account', 'Account not found or you do not have access to it');
     }
     
     res.status(200).json({
@@ -350,11 +349,7 @@ router.get('/:accountNumber', async (req, res) => {
       data: account
     });
   } catch (error) {
-    console.error('Error fetching account:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error fetching account'
-    });
+    next(error);
   }
 });
 
@@ -398,24 +393,22 @@ router.patch(
       .isLength({ min: 2, max: 50 })
       .withMessage('Account name must be between 2 and 50 characters')
   ],
-  async (req, res) => {
+  async (req, res, next) => {
     try {
       // Validate input
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ 
-          status: 'error', 
-          errors: errors.array() 
-        });
+        throw new ValidationError('Invalid account data', errors.array());
       }
 
       const account = findAccountByNumber(req.params.accountNumber);
 
-      if (!account || account.userId !== req.user.id) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Account not found'
-        });
+      if (!account) {
+        throw new NotFoundError('Account');
+      }
+
+      if (account.userId !== req.user.id) {
+        throw new NotFoundError('Account', 'Account not found or you do not have access to it');
       }
 
       // Update only allowed fields
@@ -428,11 +421,7 @@ router.patch(
         data: account
       });
     } catch (error) {
-      console.error('Error updating account:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Error updating account'
-      });
+      next(error);
     }
   }
 );

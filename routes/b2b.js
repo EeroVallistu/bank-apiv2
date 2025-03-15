@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const transactionService = require('../services/transactionService');
 const keyManager = require('../utils/keyManager');
-const cache = require('../middleware/cache');
+const { ValidationError, APIError } = require('../utils/errors');
 
 /**
  * @swagger
@@ -42,16 +42,16 @@ const cache = require('../middleware/cache');
  *         description: Processing error
  */
 // Process bank-to-bank transactions
-const processB2BTransaction = async (req, res) => {
+const processB2BTransaction = async (req, res, next) => {
   let transaction = null;
   try {
     const { jwt: token } = req.body;
     if (!token) {
-      return res.status(400).json({ 
-        status: 'error', 
-        message: 'JWT token required',
-        code: 'MISSING_TOKEN'
-      });
+      throw new ValidationError('JWT token required', [{ 
+        param: 'jwt', 
+        msg: 'JWT token is required',
+        location: 'body' 
+      }]);
     }
 
     // Decode and validate JWT structure
@@ -72,15 +72,19 @@ const processB2BTransaction = async (req, res) => {
       transactionId: result.transaction.id
     });
   } catch (error) {
-    await transactionService.handleIncomingTransactionError(transaction, error);
+    // If it's already an APIError, pass it through
+    if (error instanceof APIError) {
+      return next(error);
+    }
     
-    const errorResponse = {
-      status: 'error',
-      message: error.message,
-      code: error.code || 'UNKNOWN_ERROR'
-    };
-
-    res.status(error.status || 500).json(errorResponse);
+    // Otherwise handle based on error properties
+    if (error.status && error.code) {
+      const apiError = new APIError(error.message, error.status, error.code);
+      return next(apiError);
+    }
+    
+    // Default to passing the error to the handler
+    next(error);
   }
 };
 
