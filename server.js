@@ -51,7 +51,7 @@ app.use('/api/', limiter);
 const swaggerDocument = YAML.load(path.join(__dirname, './openapi.yaml'));
 
 // Swagger API docs setup
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
