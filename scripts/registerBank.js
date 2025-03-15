@@ -14,7 +14,7 @@ async function registerBank() {
     // Bank registration data based on central bank's expected format
     const registrationData = {
       name: process.env.BANK_NAME || 'Eero Bank',
-      owners: "Eero Vallistu",
+      owners: process.env.BANK_OWNERS || "Eero Vallistu", // Use environment variable with fallback
       jwksUrl: "https://bank.eerovallistu.site/jwks.json",
       transactionUrl: "https://bank.eerovallistu.site/transactions/b2b"
     };

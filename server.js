@@ -99,6 +99,23 @@ if (process.env.NODE_ENV === 'development') {
       });
     }
   });
+
+  // Debug endpoint to manually trigger bank re-registration
+  app.get('/debug/register-bank', async (req, res) => {
+    try {
+      const centralBankService = require('./services/centralBankService');
+      const result = await centralBankService.reRegisterBank();
+      res.json({
+        status: 'success',
+        data: result
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+  });
 }
 
 // Configure Express to trust proxy headers
@@ -117,6 +134,24 @@ app.use('/', currencyRoutes);
 
 // Add bank info route
 app.use('/bank-info', infoRoute);
+
+// Periodically check if our bank is registered with central bank
+// This helps ensure we're always registered even if deleted
+if (process.env.BANK_PREFIX) {
+  const checkRegistration = async () => {
+    try {
+      const centralBankService = require('./services/centralBankService');
+      await centralBankService.getBankDetails(process.env.BANK_PREFIX, true);
+      console.log('Bank registration check completed');
+    } catch (error) {
+      console.error('Error checking bank registration:', error);
+    }
+  };
+  
+  // Check on startup and then every 30 minutes
+  setTimeout(checkRegistration, 10000); // 10 seconds after startup
+  setInterval(checkRegistration, 30 * 60 * 1000); // Every 30 minutes
+}
 
 // Make sure this endpoint is accessible at the correct URL
 // It needs to match the URL registered with the central bank

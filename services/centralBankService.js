@@ -53,6 +53,79 @@ class CentralBankService {
   }
 
   /**
+   * Re-registers bank with the central bank using data from environment variables
+   * Used when bank is not found in central bank registry
+   * @returns {Object} Registration result
+   */
+  async reRegisterBank() {
+    try {
+      console.log('Auto re-registering bank with central bank...');
+      
+      // Prepare registration data from environment variables
+      const registrationData = {
+        name: process.env.BANK_NAME || 'Bank API',
+        owners: process.env.BANK_OWNERS || 'Bank Owner',
+        jwksUrl: process.env.JWKS_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/jwks.json`,
+        transactionUrl: process.env.TRANSACTION_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/transactions/b2b`
+      };
+      
+      console.log('Re-registration data:', registrationData);
+      
+      // Call the registration method
+      const result = await this.registerBank(registrationData);
+      
+      console.log('Bank re-registration successful:', result);
+      
+      // Save registration data to .env only
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Update .env file
+        const envPath = path.join(__dirname, '../.env');
+        if (fs.existsSync(envPath)) {
+          let envContent = fs.readFileSync(envPath, 'utf8');
+          
+          // Update BANK_PREFIX if provided
+          if (result.bankPrefix) {
+            if (envContent.includes('BANK_PREFIX=')) {
+              envContent = envContent.replace(/BANK_PREFIX=.*(\r?\n|$)/g, `BANK_PREFIX=${result.bankPrefix}$1`);
+            } else {
+              envContent += `\nBANK_PREFIX=${result.bankPrefix}`;
+            }
+          }
+          
+          // Update API_KEY if provided
+          if (result.apiKey) {
+            if (envContent.includes('API_KEY=')) {
+              envContent = envContent.replace(/API_KEY=.*(\r?\n|$)/g, `API_KEY=${result.apiKey}$1`);
+            } else {
+              envContent += `\nAPI_KEY=${result.apiKey}`;
+            }
+          }
+          
+          // Write updated content back to .env file
+          fs.writeFileSync(envPath, envContent);
+          console.log('Updated environment variables in .env file');
+          
+          // Also update process.env for the current process
+          if (result.bankPrefix) process.env.BANK_PREFIX = result.bankPrefix;
+          if (result.apiKey) process.env.API_KEY = result.apiKey;
+        } else {
+          console.warn('.env file not found, could not update environment variables');
+        }
+      } catch (fileError) {
+        console.error('Failed to update .env with re-registration data:', fileError);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error re-registering bank:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get all banks from central bank
    * @param {Boolean} forceRefresh Force refresh from central bank
    * @returns {Array} List of banks
@@ -133,6 +206,34 @@ class CentralBankService {
       // Find the bank with matching prefix
       const bank = allBanks.find(bank => bank.bankPrefix === prefix);
       
+      // If this is our own bank prefix and it's not found, try to re-register
+      if (!bank && prefix === process.env.BANK_PREFIX) {
+        console.warn(`Our bank with prefix ${prefix} not found in central bank registry. Attempting to re-register...`);
+        
+        try {
+          // Try to re-register the bank
+          await this.reRegisterBank();
+          
+          // Retry the lookup after registration
+          const refreshedBanks = await this.getAllBanks(true);
+          const refreshedBank = refreshedBanks.find(bank => bank.bankPrefix === prefix);
+          
+          if (refreshedBank) {
+            console.log(`Successfully re-registered and found our bank: ${refreshedBank.name} (${refreshedBank.bankPrefix})`);
+            
+            // Cache the result
+            this.bankCache.set(prefix, {
+              data: refreshedBank,
+              timestamp: Date.now()
+            });
+            
+            return refreshedBank;
+          }
+        } catch (regError) {
+          console.error('Failed to re-register bank:', regError);
+        }
+      }
+      
       if (!bank) {
         console.warn(`Bank with prefix ${prefix} not found in central bank registry`);
         // Cache the negative result to avoid repeated calls
@@ -171,27 +272,7 @@ class CentralBankService {
    * @returns {Object|null} Bank data or null if not found
    */
   async tryBankFallbacks(prefix) {
-    // 1. Try bankreg.txt
-    try {
-      const fs = require('fs');
-      const path = require('path');
-      const bankregPath = path.join(__dirname, '../bankreg.txt');
-      
-      if (fs.existsSync(bankregPath)) {
-        console.log('Trying to use bankreg.txt as fallback...');
-        const content = fs.readFileSync(bankregPath, 'utf8');
-        const bankRegData = JSON.parse(content);
-        
-        if (bankRegData && bankRegData.bankPrefix === prefix) {
-          console.log('Found bank in bankreg.txt:', bankRegData);
-          return bankRegData;
-        }
-      }
-    } catch (fallbackError) {
-      console.error('Fallback bankreg.txt failed:', fallbackError);
-    }
-    
-    // 2. Check if it's our own bank prefix
+    // Check if it's our own bank prefix
     if (prefix === process.env.BANK_PREFIX) {
       console.log('Request was for our own bank, returning our own details');
       return {
@@ -204,7 +285,7 @@ class CentralBankService {
       };
     }
     
-    // 3. Return a hard-coded bank for specific prefixes (for testing)
+    // Return a hard-coded bank for specific prefixes (for testing)
     const hardcodedBanks = {
       '777': {
         id: 777,
@@ -244,31 +325,6 @@ class CentralBankService {
 
   mockGetBankDetails(prefix) {
     console.log('TEST MODE: Mock getting bank details for prefix:', prefix);
-    
-    // If prefix in bankreg.txt, use that data
-    try {
-      const fs = require('fs');
-      const path = require('path');
-      const bankregPath = path.join(__dirname, '../bankreg.txt');
-      
-      if (fs.existsSync(bankregPath)) {
-        const content = fs.readFileSync(bankregPath, 'utf8');
-        let bankRegData;
-        
-        try {
-          bankRegData = JSON.parse(content);
-        } catch (e) {
-          console.error('Failed to parse bankreg.txt:', e);
-          console.log('Content of bankreg.txt:', content);
-        }
-        
-        if (bankRegData && bankRegData.bankPrefix === prefix) {
-          return bankRegData;
-        }
-      }
-    } catch (error) {
-      console.error('Error reading bankreg.txt:', error);
-    }
     
     // Default mock response
     if (prefix === process.env.BANK_PREFIX) {
