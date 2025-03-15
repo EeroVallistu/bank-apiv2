@@ -66,7 +66,8 @@ const processB2BTransaction = async (req, res, next) => {
     // Process the transaction
     const result = await transactionService.processIncomingTransaction(verifiedPayload);
     
-    res.json({
+    // Use explicit status code for successful response
+    res.status(200).json({
       status: 'success',
       receiverName: result.receiverName,
       transactionId: result.transaction.id

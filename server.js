@@ -36,31 +36,33 @@ app.use(express.static('public'));
 
 // Security middleware
 app.use(helmet());
-
-// Rate limiting to prevent abuse
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // limit each IP to 200 requests per windowMs
-  message: {
-    status: 'error',
-    code: 'RATE_LIMIT_EXCEEDED',
-    message: 'Too many requests, please try again later.'
-  }
-});
-app.use(limiter);
-
-// CORS middleware
 app.use(cors());
-
-// Parse JSON request body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Load and serve Swagger documentation
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use('/api/', limiter);
+
+// Load Swagger document
 const swaggerDocument = YAML.load(path.join(__dirname, './openapi.yaml'));
+
+// Swagger API docs setup
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// API routes
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'API is operational',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Routes
 app.use('/users', userRoutes);
 app.use('/sessions', sessionRoutes);
 app.use('/accounts', accountRoutes);
@@ -69,41 +71,36 @@ app.use('/transactions', b2bRoutes);
 app.use('/bank-info', infoRoute);
 app.use('/', currencyRoutes);
 
-// JWKS endpoint for other banks
+// JWKS endpoint for verifying digital signatures
 app.get('/jwks.json', (req, res) => {
   try {
     const keyManager = require('./utils/keyManager');
-    res.json(keyManager.getJwks());
+    const jwks = keyManager.getJwks();
+    res.status(200).json(jwks);
   } catch (error) {
-    next(error);
+    console.error('Error serving JWKS:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to retrieve JWKS'
+    });
   }
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'success',
-    message: 'API is operational',
-    timestamp: new Date()
+// 404 handler for undefined routes
+app.use((req, res) => {
+  res.status(404).json({
+    status: 'error',
+    message: 'Endpoint not found'
   });
 });
 
-// 404 handler - this runs if no route matches
-app.use((req, res, next) => {
-  const err = new Error(`Not Found - ${req.originalUrl}`);
-  err.status = 404;
-  err.code = 'NOT_FOUND';
-  next(err);
-});
-
-// Global error handler - must be last middleware
+// Error handler middleware (should be last)
 app.use(errorHandler);
 
-// Start server
+// Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`API Documentation: http://localhost:${PORT}/api-docs`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`API Documentation available at http://localhost:${PORT}/api-docs`);
 });
 
 module.exports = app;

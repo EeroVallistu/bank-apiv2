@@ -37,9 +37,18 @@ function errorHandler(err, req, res, next) {
     message = 'Token expired';
     code = 'TOKEN_EXPIRED';
   }
-  
-  // Handle specific database errors
-  // (Would be expanded for Sequelize or other database-specific errors)
+  // Handle Not Found errors
+  else if (err.name === 'NotFoundError') {
+    status = 404;
+    message = err.message || 'Resource not found';
+    code = 'NOT_FOUND';
+  }
+  // Handle network/external service errors
+  else if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
+    status = 502;
+    message = 'External service unavailable';
+    code = 'BAD_GATEWAY';
+  }
   
   // Create response object
   const errorResponse = {
