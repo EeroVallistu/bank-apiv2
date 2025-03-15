@@ -360,20 +360,7 @@ sessionRouter.delete('/', authenticate, async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /sessions/logout:
- *   delete:
- *     summary: Logout current user
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User logged out successfully
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- */
+
 sessionRouter.delete('/logout', authenticate, async (req, res) => {
   try {
     const user = findUserById(req.user.id);
