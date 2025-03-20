@@ -29,7 +29,6 @@ const PORT = process.env.PORT || 5000;
 
 // Initialize data store with sample data if in development
 if (process.env.NODE_ENV === 'development') {
-  dataStore.initWithSampleData();
 }
 
 // Serve static files from public directory
