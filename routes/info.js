@@ -29,8 +29,8 @@ const centralBankService = require('../services/centralBankService');
  */
 router.get('/', authenticate, (req, res) => {
   res.json({
-    name: process.env.BANK_NAME || 'Bank API',
-    prefix: process.env.BANK_PREFIX || '353'
+    name: process.env.BANK_NAME,
+    prefix: process.env.BANK_PREFIX
   });
 });
 

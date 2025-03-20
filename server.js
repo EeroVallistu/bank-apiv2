@@ -6,6 +6,7 @@ const YAML = require('yamljs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const scheduler = require('./utils/scheduler');
 
 // Import middleware
 const cache = require('./middleware/cache');
@@ -100,7 +101,10 @@ app.use(errorHandler);
 // Start the server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`API Documentation available at http://localhost:${PORT}/api-docs`);
+  console.log(`API Documentation available at http://localhost:${PORT}/docs`);
+  
+  // Start scheduler for background tasks
+  scheduler.start();
 });
 
 module.exports = app;

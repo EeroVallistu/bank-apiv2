@@ -36,7 +36,7 @@ const generateTransactionId = () => nextTransactionId++;
 
 // Helper to generate account numbers with bank prefix
 const generateAccountNumber = () => {
-  const bankPrefix = process.env.BANK_PREFIX || '353';
+  const bankPrefix = process.env.BANK_PREFIX;
   // Make sure we only use the first 3 characters for the bank prefix
   // This ensures consistency when prefix changes
   const prefix = bankPrefix.substring(0, 3);
