@@ -44,35 +44,6 @@ const generateAccountNumber = () => {
   return `${prefix}${randomPart}`;
 };
 
-// Init with sample data if needed
-const initWithSampleData = () => {
-  if (users.length === 0 && process.env.NODE_ENV === 'development') {
-    // Add sample user
-    const sampleUser = {
-      id: generateUserId(),
-      username: 'testuser',
-      password: 'password123', // NOT secure, only for testing!
-      fullName: 'Test User',
-      email: 'test@example.com',
-      sessions: [],
-      createdAt: new Date().toISOString()
-    };
-    users.push(sampleUser);
-
-    // Add sample account
-    const sampleAccount = {
-      id: generateAccountId(),
-      accountNumber: generateAccountNumber(),
-      userId: sampleUser.id,
-      balance: 5000.00,
-      currency: 'EUR',
-      name: 'Main Account',
-      createdAt: new Date().toISOString()
-    };
-    accounts.push(sampleAccount);
-  }
-};
-
 module.exports = {
   users,
   accounts,
@@ -88,6 +59,5 @@ module.exports = {
   generateUserId,
   generateAccountId,
   generateTransactionId,
-  generateAccountNumber,
-  initWithSampleData
+  generateAccountNumber
 };

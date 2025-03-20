@@ -12,6 +12,5 @@ API_KEY=your_central_bank_api_key                       # Received from central 
 # -- DEFAULT SETTINGS (can leave unchanged) --
 PORT=9000
 CENTRAL_BANK_URL=https://henno.cfd/central-bank
-TEST_MODE=false
 NODE_ENV=development
 DISABLE_SEQUELIZE_LOGGING=true

@@ -108,7 +108,7 @@ class Scheduler {
         console.log('Bank registration verified successfully');
       }
     } catch (error) {
-      console.error('Error checking bank registration:', error.message);
+      console.error('Error checking bank registration:', error);
     }
   }
 }

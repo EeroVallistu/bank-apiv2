@@ -21,10 +21,6 @@ class CentralBankService {
    */
   async registerBank(bankData) {
     try {
-      if (process.env.TEST_MODE === 'true') {
-        return this.mockRegisterBank(bankData);
-      }
-
       const response = await fetch(`${this.apiUrl}/banks`, {
         method: 'POST',
         headers: {
@@ -211,14 +207,6 @@ class CentralBankService {
         return this.allBanksCache;
       }
       
-      // Use test mode if enabled
-      if (process.env.TEST_MODE === 'true') {
-        const mockBanks = this.mockGetAllBanks();
-        this.allBanksCache = mockBanks;
-        this.allBanksCacheTime = Date.now();
-        return mockBanks;
-      }
-      
       console.log('Fetching all banks from central bank API');
       
       const response = await fetch(`${this.apiUrl}/banks`, {
@@ -264,11 +252,6 @@ class CentralBankService {
         }
         // Cache expired, remove it
         this.bankCache.delete(prefix);
-      }
-      
-      // Check if we're in test mode
-      if (process.env.TEST_MODE === 'true') {
-        return this.mockGetBankDetails(prefix);
       }
 
       // Get all banks and find the one with matching prefix
@@ -351,112 +334,13 @@ class CentralBankService {
         id: 999,
         name: process.env.BANK_NAME || 'Our Bank',
         bankPrefix: process.env.BANK_PREFIX,
-        owners: 'Bank Owner',
+        owners: process.env.BANK_OWNERS || 'Bank Owner',
         jwksUrl: process.env.JWKS_URL,
         transactionUrl: process.env.TRANSACTION_URL
       };
     }
     
-    // Return a hard-coded bank for specific prefixes (for testing)
-    const hardcodedBanks = {
-      '777': {
-        id: 777,
-        name: "Bank 777",
-        bankPrefix: "777",
-        owners: "Test Owner",
-        jwksUrl: "https://bank777.example.com/jwks.json",
-        transactionUrl: "https://bank777.example.com/transactions/b2b"
-      },
-      // Add other known banks here
-    };
-    
-    if (hardcodedBanks[prefix]) {
-      console.log(`Using hardcoded bank data for prefix ${prefix}`);
-      return hardcodedBanks[prefix];
-    }
-    
     return null;
-  }
-
-  /**
-   * Mock functions for testing without actual Central Bank API
-   */
-  mockRegisterBank(bankData) {
-    console.log('TEST MODE: Mock registering bank:', bankData);
-    return {
-      id: 999,
-      name: bankData.name,
-      bankPrefix: bankData.bankPrefix || process.env.BANK_PREFIX || '917',
-      owners: bankData.owners,
-      jwksUrl: bankData.jwksUrl,
-      transactionUrl: bankData.transactionUrl,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-  }
-
-  mockGetBankDetails(prefix) {
-    console.log('TEST MODE: Mock getting bank details for prefix:', prefix);
-    
-    // Default mock response
-    if (prefix === process.env.BANK_PREFIX) {
-      return {
-        id: 888,
-        name: process.env.BANK_NAME || "Our Bank",
-        bankPrefix: prefix,
-        owners: "Bank Owner",
-        jwksUrl: process.env.JWKS_URL || "https://bank.eerovallistu.site/jwks.json",
-        transactionUrl: process.env.TRANSACTION_URL || "https://bank.eerovallistu.site/transactions/b2b",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-    }
-    
-    // For external banks
-    return {
-      id: 777,
-      name: "External Mock Bank",
-      bankPrefix: prefix,
-      owners: "External Owner",
-      jwksUrl: "https://mock-bank.example.com/jwks.json",
-      transactionUrl: "https://mock-bank.example.com/transactions/b2b",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-  }
-  
-  mockGetAllBanks() {
-    console.log('TEST MODE: Mock getting all banks');
-    
-    // Create a list with our bank and some mock banks
-    const banks = [
-      {
-        id: 1,
-        name: process.env.BANK_NAME || "Our Bank",
-        bankPrefix: process.env.BANK_PREFIX || '917',
-        owners: "Bank Owner",
-        jwksUrl: process.env.JWKS_URL || "https://bank.eerovallistu.site/jwks.json",
-        transactionUrl: process.env.TRANSACTION_URL || "https://bank.eerovallistu.site/transactions/b2b"
-      },
-      {
-        id: 2,
-        name: "External Bank 1",
-        bankPrefix: "123",
-        owners: "External Owner 1",
-        jwksUrl: "https://bank1.example.com/jwks.json",
-        transactionUrl: "https://bank1.example.com/transactions/b2b"
-      },
-      {
-        id: 3,
-        name: "External Bank 2",
-        bankPrefix: "456",
-        owners: "External Owner 2",
-        jwksUrl: "https://bank2.example.com/jwks.json",
-        transactionUrl: "https://bank2.example.com/transactions/b2b"
-      }
-    ];
-    
-    return banks;
   }
 }
 
