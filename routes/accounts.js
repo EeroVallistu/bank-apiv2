@@ -2,12 +2,12 @@ const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const { authenticate } = require('../middleware/auth');
 const { 
-  accounts, 
+  Account,
+  User,
   findAccountsByUserId, 
   findAccountByNumber, 
-  generateAccountId, 
   generateAccountNumber 
-} = require('../models/inMemoryStore');
+} = require('../models');
 const { 
   NotFoundError, 
   ValidationError,
@@ -61,93 +61,43 @@ router.use(authenticate);
  * @swagger
  * /accounts:
  *   get:
- *     summary: Get all accounts for current user
+ *     summary: Get all user accounts
  *     tags: [Accounts]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: currency
- *         schema:
- *           type: string
- *         description: Filter by currency (EUR, USD, GBP)
- *       - in: query
- *         name: sort
- *         schema:
- *           type: string
- *           enum: [balance, -balance, name, -name, createdAt, -createdAt]
- *         description: Sort accounts (prefix with - for descending)
  *     responses:
  *       200:
  *         description: List of user accounts
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Account'
  *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
+ *         description: Unauthorized
  */
-router.get('/', [
-  query('currency').optional().isIn(['EUR', 'USD', 'GBP']).withMessage('Invalid currency'),
-  query('sort').optional().isString().withMessage('Invalid sort parameter')
-], async (req, res, next) => {
+router.get('/', async (req, res) => {
   try {
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      throw new ValidationError('Invalid query parameters', errors.array());
-    }
+    const userId = req.user.id;
+    
+    // Get accounts from database
+    const accounts = await findAccountsByUserId(userId);
+    
+    const formattedAccounts = accounts.map(account => ({
+      id: account.id,
+      accountNumber: account.account_number,
+      userId: account.user_id,
+      balance: parseFloat(account.balance),
+      currency: account.currency,
+      name: account.name,
+      createdAt: account.createdAt
+    }));
 
-    if (!req.user?.id) {
-      throw new Error('User ID not found in request');
-    }
-
-    console.log('GET /accounts - User:', req.user.id);
-    
-    // Get accounts for the user
-    let userAccounts = findAccountsByUserId(req.user.id);
-    
-    // Apply currency filter if provided
-    const { currency, sort } = req.query;
-    if (currency) {
-      userAccounts = userAccounts.filter(account => account.currency === currency);
-    }
-    
-    // Apply sorting if provided
-    if (sort) {
-      const [field, direction] = sort.startsWith('-') 
-        ? [sort.substring(1), 'desc'] 
-        : [sort, 'asc'];
-      
-      userAccounts.sort((a, b) => {
-        if (direction === 'asc') {
-          return a[field] > b[field] ? 1 : -1;
-        } else {
-          return a[field] < b[field] ? 1 : -1;
-        }
-      });
-    } else {
-      // Default sort by creation date
-      userAccounts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    }
-    
-    // Debug logging
-    console.log('Found accounts:', JSON.stringify(userAccounts, null, 2));
-    
     res.status(200).json({
       status: 'success',
-      data: userAccounts || []
+      data: formattedAccounts
     });
   } catch (error) {
-    next(error);
+    console.error('Get accounts error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error fetching accounts'
+    });
   }
 });
 
@@ -166,135 +116,83 @@ router.get('/', [
  *           schema:
  *             type: object
  *             required:
- *               - currency
  *               - name
+ *               - currency
  *             properties:
- *               currency:
- *                 type: string
- *                 enum: [EUR, USD, GBP]
- *                 example: EUR
  *               name:
  *                 type: string
- *                 example: Main Savings
- *     responses:
- *       201:
- *         description: Account created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                       example: 1
- *                     accountNumber:
- *                       type: string
- *                       example: 353c8b72e4a9f15d3b82
- *                     balance:
- *                       type: number
- *                       example: 1000.00
- *                     currency:
- *                       type: string
- *                       example: EUR
- *                     name:
- *                       type: string
- *                       example: Main Savings
- */
-
-/**
- * @swagger
- * /accounts:
- *   post:
- *     summary: Create a new account
- *     tags: [Accounts]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - currency
- *               - name
- *             properties:
+ *                 description: Name of the account
+ *                 example: "Main Account"
  *               currency:
  *                 type: string
+ *                 description: Currency code
  *                 enum: [EUR, USD, GBP, SEK]
- *               name:
- *                 type: string
+ *                 example: "EUR"
  *     responses:
  *       201:
  *         description: Account created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   $ref: '#/components/schemas/Account'
  *       400:
- *         $ref: '#/components/responses/ValidationError'
+ *         description: Validation error
  *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
+ *         description: Unauthorized
  */
 router.post(
   '/',
   [
-    body('currency')
-      .isIn(['EUR', 'USD', 'GBP', 'SEK'])
-      .withMessage('Currency must be EUR, USD, GBP, or SEK'),
     body('name')
+      .isString()
       .notEmpty()
-      .withMessage('Account name is required')
-      .isLength({ min: 2, max: 50 })
-      .withMessage('Account name must be between 2 and 50 characters')
-      .trim()
+      .withMessage('Account name is required'),
+    body('currency')
+      .isString()
+      .isIn(['EUR', 'USD', 'GBP', 'SEK'])
+      .withMessage('Currency must be one of: EUR, USD, GBP, SEK')
   ],
-  async (req, res, next) => {
+  async (req, res) => {
     try {
-      // Validate input
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        throw new ValidationError('Invalid account data', errors.array());
+        return res.status(400).json({
+          status: 'error',
+          errors: errors.array()
+        });
       }
-
-      const { currency, name } = req.body;
+      
+      const { name, currency } = req.body;
+      const userId = req.user.id;
       
       // Generate account number
-      const accountNumber = generateAccountNumber();
+      const accountNumber = await generateAccountNumber();
       
-      // Create new account
-      const account = {
-        id: generateAccountId(),
-        accountNumber,
-        userId: req.user.id,
-        currency: currency.toUpperCase(),
-        name: name.trim(),
-        balance: 1000, // Starting balance for demonstration
-        createdAt: new Date().toISOString()
-      };
-      
-      // Add to in-memory store
-      accounts.push(account);
-      
+      // Create the account in the database
+      const newAccount = await Account.create({
+        account_number: accountNumber,
+        user_id: userId,
+        balance: 1000.00,
+        currency,
+        name,
+        is_active: true
+      });
+
       res.status(201).json({
         status: 'success',
-        data: account,
-        message: 'Account created successfully'
+        message: 'Account created successfully',
+        data: {
+          id: newAccount.id,
+          accountNumber: newAccount.account_number,
+          userId: newAccount.user_id,
+          balance: parseFloat(newAccount.balance),
+          currency: newAccount.currency,
+          name: newAccount.name,
+          createdAt: newAccount.createdAt
+        }
       });
     } catch (error) {
-      next(error);
+      console.error('Create account error:', error);
+      res.status(500).json({
+        status: 'error',
+        message: 'Server error creating account'
+      });
     }
   }
 );
@@ -316,40 +214,52 @@ router.post(
  *     responses:
  *       200:
  *         description: Account details
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: success
- *                 data:
- *                   $ref: '#/components/schemas/Account'
+ *       401:
+ *         description: Unauthorized
  *       404:
  *         description: Account not found
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
  */
-router.get('/:accountNumber', async (req, res, next) => {
+router.get('/:accountNumber', async (req, res) => {
   try {
-    const account = findAccountByNumber(req.params.accountNumber);
+    const { accountNumber } = req.params;
+    const userId = req.user.id;
     
-    // Check if account exists and belongs to the user
+    // Find account in database
+    const account = await findAccountByNumber(accountNumber);
+    
     if (!account) {
-      throw new NotFoundError('Account');
+      return res.status(404).json({
+        status: 'error',
+        message: 'Account not found'
+      });
+    }
+    
+    // Verify account belongs to user
+    if (account.user_id !== userId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'You do not have permission to access this account'
+      });
     }
 
-    if (account.userId !== req.user.id) {
-      throw new NotFoundError('Account', 'Account not found or you do not have access to it');
-    }
-    
     res.status(200).json({
       status: 'success',
-      data: account
+      data: {
+        id: account.id,
+        accountNumber: account.account_number,
+        userId: account.user_id,
+        balance: parseFloat(account.balance),
+        currency: account.currency,
+        name: account.name,
+        createdAt: account.createdAt
+      }
     });
   } catch (error) {
-    next(error);
+    console.error('Get account error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Server error fetching account'
+    });
   }
 });
 
@@ -401,7 +311,7 @@ router.patch(
         throw new ValidationError('Invalid account data', errors.array());
       }
 
-      const account = findAccountByNumber(req.params.accountNumber);
+      const account = await findAccountByNumber(req.params.accountNumber);
 
       if (!account) {
         throw new NotFoundError('Account');

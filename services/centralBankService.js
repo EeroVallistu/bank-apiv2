@@ -1,5 +1,7 @@
 const fetch = require('node-fetch');
 const cache = require('../utils/cache');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * Service for interacting with the Central Bank API
@@ -51,10 +53,66 @@ class CentralBankService {
   /**
    * Re-registers bank with the central bank using data from environment variables
    * Used when bank is not found in central bank registry
+   * @param {String} currentPrefix The current bank prefix to check against
    * @returns {Object} Registration result
    */
-  async reRegisterBank() {
+  async reRegisterBank(currentPrefix = null) {
     try {
+      // First check if we're already registered with a different prefix
+      if (currentPrefix) {
+        console.log('Checking if bank is already registered with a different prefix...');
+        
+        // Get all banks and check if our bank exists with any prefix
+        const allBanks = await this.getAllBanks(true);
+        
+        // Look for a bank with matching name or transaction URL
+        const ourBankName = process.env.BANK_NAME || 'Bank API';
+        const ourTransactionUrl = process.env.TRANSACTION_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/transactions/b2b`;
+        
+        const existingBank = allBanks.find(bank => 
+          bank.name === ourBankName || 
+          bank.transactionUrl === ourTransactionUrl
+        );
+        
+        if (existingBank && existingBank.bankPrefix !== currentPrefix) {
+          console.log(`Bank already registered with prefix ${existingBank.bankPrefix} instead of ${currentPrefix}`);
+          
+          // Update our environment with the correct prefix
+          try {
+            // Update .env file
+            const envPath = path.join(__dirname, '../.env');
+            if (fs.existsSync(envPath)) {
+              let envContent = fs.readFileSync(envPath, 'utf8');
+              
+              // Update BANK_PREFIX in .env
+              if (envContent.includes('BANK_PREFIX=')) {
+                envContent = envContent.replace(/BANK_PREFIX=.*(\r?\n|$)/g, `BANK_PREFIX=${existingBank.bankPrefix}$1`);
+              } else {
+                envContent += `\nBANK_PREFIX=${existingBank.bankPrefix}`;
+              }
+              
+              // Write updated content back to .env file
+              fs.writeFileSync(envPath, envContent);
+              
+              // Also update process.env
+              process.env.BANK_PREFIX = existingBank.bankPrefix;
+              
+              console.log(`Updated environment with existing bank prefix: ${existingBank.bankPrefix}`);
+              
+              // Update account numbers if needed
+              if (currentPrefix && currentPrefix !== existingBank.bankPrefix) {
+                console.log(`Updating account numbers from ${currentPrefix} to ${existingBank.bankPrefix}`);
+                await this.updateAllAccountNumbers(currentPrefix, existingBank.bankPrefix);
+              }
+            }
+          } catch (fileError) {
+            console.error('Failed to update environment with existing bank prefix:', fileError);
+          }
+          
+          return existingBank;
+        }
+      }
+      
       console.log('Auto re-registering bank with central bank...');
       
       // Prepare registration data from environment variables
@@ -77,10 +135,6 @@ class CentralBankService {
       
       // Save registration data to .env only
       try {
-        const fs = require('fs');
-        const path = require('path');
-        
-        // Update .env file
         const envPath = path.join(__dirname, '../.env');
         if (fs.existsSync(envPath)) {
           let envContent = fs.readFileSync(envPath, 'utf8');
@@ -144,49 +198,86 @@ class CentralBankService {
    */
   async updateAllAccountNumbers(oldPrefix, newPrefix) {
     try {
-      // Get access to the in-memory store
-      const { accounts, transactions } = require('../models/inMemoryStore');
+      // Get access to the database models
+      const { Account, Transaction, sequelize } = require('../models');
       
-      // Keep track of account number mapping for transaction updates
-      const accountMapping = {};
+      // Begin a transaction to ensure all updates succeed or fail together
+      const t = await sequelize.transaction();
       
-      // Update all account numbers in accounts array
-      for (const account of accounts) {
-        // Only update accounts with our bank prefix
-        if (account.accountNumber.startsWith(oldPrefix)) {
-          const oldAccountNumber = account.accountNumber;
-          // Replace the prefix at the beginning of the account number
-          account.accountNumber = newPrefix + account.accountNumber.substring(oldPrefix.length);
+      try {
+        // Find ALL accounts regardless of their prefix
+        const accounts = await Account.findAll({
+          transaction: t
+        });
+        
+        console.log(`Found ${accounts.length} accounts to update`);
+        
+        // Keep track of account number mapping for transaction updates
+        const accountMapping = {};
+        
+        // Update all account numbers
+        for (const account of accounts) {
+          const oldAccountNumber = account.account_number;
+          // Replace any existing prefix or add the new prefix
+          const newAccountNumber = newPrefix + oldAccountNumber.substring(3);
           
           // Store the mapping for transaction updates
-          accountMapping[oldAccountNumber] = account.accountNumber;
+          accountMapping[oldAccountNumber] = newAccountNumber;
           
-          console.log(`Updated account ${oldAccountNumber} to ${account.accountNumber}`);
-        }
-      }
-      
-      // Update all transaction references to these accounts
-      let transactionsUpdated = 0;
-      for (const transaction of transactions) {
-        // Check and update fromAccount
-        if (accountMapping[transaction.fromAccount]) {
-          transaction.fromAccount = accountMapping[transaction.fromAccount];
-          transactionsUpdated++;
+          // Update the account number
+          account.account_number = newAccountNumber;
+          await account.save({ transaction: t });
+          
+          console.log(`Updated account ${oldAccountNumber} to ${newAccountNumber}`);
         }
         
-        // Check and update toAccount
-        if (accountMapping[transaction.toAccount]) {
-          transaction.toAccount = accountMapping[transaction.toAccount];
-          transactionsUpdated++;
+        let transactionsUpdated = 0;
+        
+        // Update transactions only if we have accounts to update
+        if (Object.keys(accountMapping).length > 0) {
+          // Update from_account
+          for (const [oldAccount, newAccount] of Object.entries(accountMapping)) {
+            const fromUpdated = await Transaction.update(
+              { from_account: newAccount },
+              { 
+                where: { from_account: oldAccount },
+                transaction: t
+              }
+            );
+            
+            transactionsUpdated += fromUpdated[0];
+          }
+          
+          // Update to_account
+          for (const [oldAccount, newAccount] of Object.entries(accountMapping)) {
+            const toUpdated = await Transaction.update(
+              { to_account: newAccount },
+              { 
+                where: { to_account: oldAccount },
+                transaction: t
+              }
+            );
+            
+            transactionsUpdated += toUpdated[0];
+          }
+        } else {
+          console.log('No accounts found. No transactions need updating.');
         }
+        
+        // Commit the transaction
+        await t.commit();
+        
+        console.log(`Updated ${accounts.length} accounts and ${transactionsUpdated} transaction references`);
+        
+        return {
+          accountsUpdated: accounts.length,
+          transactionsUpdated
+        };
+      } catch (error) {
+        // Rollback the transaction on error
+        await t.rollback();
+        throw error;
       }
-      
-      console.log(`Updated ${Object.keys(accountMapping).length} accounts and ${transactionsUpdated} transaction references`);
-      
-      return {
-        accountsUpdated: Object.keys(accountMapping).length,
-        transactionsUpdated
-      };
     } catch (error) {
       console.error('Error updating account numbers:', error);
       throw new Error(`Failed to update account numbers: ${error.message}`);
@@ -243,7 +334,7 @@ class CentralBankService {
    */
   async getBankDetails(prefix, forceRefresh = false) {
     try {
-      // Return from cache if available
+      // Return from cache if available and not forced to refresh
       if (!forceRefresh && this.bankCache.has(prefix)) {
         const cached = this.bankCache.get(prefix);
         if (cached.timestamp > Date.now() - this.cacheTTL) {
@@ -256,7 +347,7 @@ class CentralBankService {
 
       // Get all banks and find the one with matching prefix
       console.log(`Looking up bank with prefix ${prefix}`);
-      const allBanks = await this.getAllBanks();
+      const allBanks = await this.getAllBanks(forceRefresh);
       
       // Find the bank with matching prefix
       const bank = allBanks.find(bank => bank.bankPrefix === prefix);
@@ -265,19 +356,72 @@ class CentralBankService {
       if (!bank && prefix === process.env.BANK_PREFIX) {
         console.warn(`Our bank with prefix ${prefix} not found in central bank registry. Attempting to re-register...`);
         
+        // Look for a bank with our name or transaction URL
+        const ourBankName = process.env.BANK_NAME || 'Bank API';
+        const ourTransactionUrl = process.env.TRANSACTION_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/transactions/b2b`;
+        
+        const existingBank = allBanks.find(bank => 
+          bank.name === ourBankName || 
+          bank.transactionUrl === ourTransactionUrl
+        );
+        
+        if (existingBank) {
+          console.log(`Found our bank with different prefix: ${existingBank.bankPrefix} instead of ${prefix}`);
+          
+          // Update our environment with the correct prefix
+          try {
+            // Update .env file
+            const envPath = path.join(__dirname, '../.env');
+            if (fs.existsSync(envPath)) {
+              let envContent = fs.readFileSync(envPath, 'utf8');
+              
+              // Update BANK_PREFIX in .env
+              if (envContent.includes('BANK_PREFIX=')) {
+                envContent = envContent.replace(/BANK_PREFIX=.*(\r?\n|$)/g, `BANK_PREFIX=${existingBank.bankPrefix}$1`);
+              } else {
+                envContent += `\nBANK_PREFIX=${existingBank.bankPrefix}`;
+              }
+              
+              // Write updated content back to .env file
+              fs.writeFileSync(envPath, envContent);
+              
+              // Also update process.env
+              process.env.BANK_PREFIX = existingBank.bankPrefix;
+              
+              console.log(`Updated environment with existing bank prefix: ${existingBank.bankPrefix}`);
+              
+              // Update account numbers if needed
+              if (prefix && prefix !== existingBank.bankPrefix) {
+                console.log(`Updating account numbers from ${prefix} to ${existingBank.bankPrefix}`);
+                await this.updateAllAccountNumbers(prefix, existingBank.bankPrefix);
+              }
+            }
+          } catch (fileError) {
+            console.error('Failed to update environment with existing bank prefix:', fileError);
+          }
+          
+          // Cache the result
+          this.bankCache.set(existingBank.bankPrefix, {
+            data: existingBank,
+            timestamp: Date.now()
+          });
+          
+          return existingBank;
+        }
+        
         try {
           // Try to re-register the bank
-          await this.reRegisterBank();
+          await this.reRegisterBank(prefix);
           
           // Retry the lookup after registration
           const refreshedBanks = await this.getAllBanks(true);
-          const refreshedBank = refreshedBanks.find(bank => bank.bankPrefix === prefix);
+          const refreshedBank = refreshedBanks.find(bank => bank.bankPrefix === process.env.BANK_PREFIX);
           
           if (refreshedBank) {
             console.log(`Successfully re-registered and found our bank: ${refreshedBank.name} (${refreshedBank.bankPrefix})`);
             
             // Cache the result
-            this.bankCache.set(prefix, {
+            this.bankCache.set(refreshedBank.bankPrefix, {
               data: refreshedBank,
               timestamp: Date.now()
             });
@@ -341,6 +485,76 @@ class CentralBankService {
     }
     
     return null;
+  }
+
+  /**
+   * Regular bank check to ensure registration is still valid
+   * Called by the scheduler
+   */
+  async checkBankRegistration() {
+    try {
+      const bankPrefix = process.env.BANK_PREFIX;
+      
+      if (!bankPrefix) {
+        console.log('Bank prefix not set, skipping check');
+        return false;
+      }
+      
+      console.log(`Checking bank registration for prefix ${bankPrefix}`);
+      
+      // Get bank details from central bank
+      const bankDetails = await this.getBankDetails(bankPrefix, true);
+      
+      if (!bankDetails) {
+        console.log('Bank not found in central bank registry, re-registration required');
+        return false;
+      }
+      
+      // If we're here, the bank is registered
+      console.log(`Bank registration confirmed: ${bankDetails.name} (${bankDetails.bankPrefix})`);
+      
+      // Check if any accounts need prefix updates
+      await this.updateOutdatedAccounts(bankDetails.bankPrefix);
+      
+      return true;
+    } catch (error) {
+      console.error('Error checking bank registration:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check and update account numbers that don't match the current bank prefix
+   * @param {string} currentPrefix The current correct bank prefix
+   */
+  async updateOutdatedAccounts(currentPrefix) {
+    try {
+      if (!currentPrefix) return;
+      
+      const { Account, sequelize } = require('../models');
+      
+      // Get first few characters from all account numbers
+      const accountPrefixes = await Account.findAll({
+        attributes: [
+          [sequelize.fn('DISTINCT', sequelize.fn('LEFT', sequelize.col('account_number'), 3)), 'prefix']
+        ],
+        raw: true
+      });
+      
+      // Extract the prefixes
+      const prefixes = accountPrefixes.map(row => row.prefix);
+      console.log('Found account prefixes in database:', prefixes);
+      
+      // Update accounts with mismatched prefixes
+      for (const prefix of prefixes) {
+        if (prefix && prefix !== currentPrefix) {
+          console.log(`Found accounts with outdated prefix: ${prefix}, updating to ${currentPrefix}`);
+          await this.updateAllAccountNumbers(prefix, currentPrefix);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for outdated account prefixes:', error);
+    }
   }
 }
 

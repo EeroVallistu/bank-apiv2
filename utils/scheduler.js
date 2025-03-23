@@ -95,17 +95,19 @@ class Scheduler {
       
       console.log(`Using bank prefix: ${bankPrefix}`);
       
-      // Check if our bank is registered - pass the prefix directly
-      const bankDetails = await centralBankService.getBankDetails(bankPrefix, true);
+      // Check registration using the centralized method, which also handles account updates
+      const isRegistered = await centralBankService.checkBankRegistration();
       
-      if (!bankDetails) {
+      if (!isRegistered) {
         console.log('Bank not found in central bank registry. Attempting to re-register...');
         
         // Pass the current bank prefix for re-registration
         const result = await centralBankService.reRegisterBank(bankPrefix);
         console.log('Bank re-registration result:', result);
-      } else {
-        console.log('Bank registration verified successfully');
+        
+        // Force an account number update after re-registration
+        console.log('Verifying account numbers after re-registration...');
+        await centralBankService.updateOutdatedAccounts(result.bankPrefix || process.env.BANK_PREFIX);
       }
     } catch (error) {
       console.error('Error checking bank registration:', error);

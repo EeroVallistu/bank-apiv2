@@ -3,14 +3,16 @@ const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const { authenticate } = require('../middleware/auth');
 const { 
-  accounts, 
-  transactions, 
+  Account,
+  Transaction,
+  User,
   findAccountByNumber, 
   findUserById,
   findAccountsByUserId,
   findTransactionById,
-  generateTransactionId
-} = require('../models/inMemoryStore');
+  sequelize
+} = require('../models');
+const { Op } = require('sequelize');
 const keyManager = require('../utils/keyManager');
 const centralBankService = require('../services/centralBankService');
 const fetch = require('node-fetch');
@@ -43,21 +45,40 @@ router.use((req, res, next) => {
  */
 router.get('/', async (req, res) => {
   try {
-    // Get user accounts
-    const userAccounts = findAccountsByUserId(req.user.id);
-    const accountNumbers = userAccounts.map(acc => acc.accountNumber);
+    // Get user accounts from database
+    const userAccounts = await findAccountsByUserId(req.user.id);
+    const accountNumbers = userAccounts.map(acc => acc.account_number);
     
     // Find transactions where user is sender or receiver
-    const userTransactions = transactions.filter(
-      tx => accountNumbers.includes(tx.fromAccount) || accountNumbers.includes(tx.toAccount)
-    );
+    const userTransactions = await Transaction.findAll({
+      where: {
+        [Op.or]: [
+          { from_account: { [Op.in]: accountNumbers } },
+          { to_account: { [Op.in]: accountNumbers } }
+        ]
+      },
+      order: [['createdAt', 'DESC']]
+    });
     
-    // Sort by date (newest first)
-    userTransactions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    // Format transactions for response
+    const formattedTransactions = userTransactions.map(tx => ({
+      id: tx.id,
+      fromAccount: tx.from_account,
+      toAccount: tx.to_account,
+      amount: parseFloat(tx.amount),
+      currency: tx.currency,
+      explanation: tx.explanation,
+      status: tx.status,
+      createdAt: tx.createdAt,
+      sender_name: tx.sender_name,
+      receiver_name: tx.receiver_name,
+      is_external: tx.is_external,
+      reference_id: tx.reference_id,
+    }));
     
     res.status(200).json({
       status: 'success',
-      data: userTransactions
+      data: formattedTransactions
     });
   } catch (error) {
     console.error('Error fetching transactions:', error);

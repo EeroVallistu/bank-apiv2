@@ -3,12 +3,12 @@ const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const { authenticate } = require('../middleware/auth');
 const { 
-  users, 
+  User,
   findUserByUsername, 
   findUserByEmail, 
-  findUserById, 
-  generateUserId 
-} = require('../models/inMemoryStore');
+  findUserById,
+  Session
+} = require('../models');
 const { Op } = require('sequelize');
 
 const userRouter = express.Router();
@@ -93,8 +93,15 @@ userRouter.post(
 
       const { username, password, fullName, email } = req.body;
 
-      // Check if user exists
-      const existingUser = findUserByUsername(username) || findUserByEmail(email);
+      // Check if user exists using Sequelize models
+      const existingUser = await User.findOne({
+        where: {
+          [Op.or]: [
+            { username: username },
+            { email: email }
+          ]
+        }
+      });
       
       if (existingUser) {
         return res.status(400).json({ 
@@ -103,19 +110,14 @@ userRouter.post(
         });
       }
 
-      // Create new user
-      const newUser = {
-        id: generateUserId(),
+      // Create new user with Sequelize
+      await User.create({
         username,
         password, // WARNING: Storing plain text password (not secure!)
-        fullName,
+        full_name: fullName,
         email,
-        sessions: [],
-        createdAt: new Date().toISOString()
-      };
-      
-      // Add to in-memory store
-      users.push(newUser);
+        is_active: true
+      });
 
       res.status(201).json({
         status: 'success',
@@ -147,7 +149,7 @@ userRouter.post(
  */
 userRouter.get('/me', authenticate, async (req, res) => {
   try {
-    const user = findUserById(req.user.id);
+    const user = await findUserById(req.user.id);
     
     if (!user) {
       return res.status(404).json({
@@ -156,8 +158,9 @@ userRouter.get('/me', authenticate, async (req, res) => {
       });
     }
 
-    // Return user without password and sessions
-    const { password, sessions, ...userData } = user;
+    // Remove password from response
+    const userData = user.toJSON();
+    delete userData.password;
 
     res.status(200).json({
       status: 'success',
@@ -274,7 +277,7 @@ sessionRouter.post(
 
       const { username, password } = req.body;
 
-      const user = findUserByUsername(username);
+      const user = await findUserByUsername(username);
       if (!user) {
         return res.status(401).json({
           status: 'error',
@@ -300,25 +303,35 @@ sessionRouter.post(
         expiresIn: '24h'
       });
 
-      // Store session with expiry
-      const sessions = user.sessions || [];
-      sessions.push({
-        id: sessionId,
+      // Store session in database
+      const expiresAt = new Date(Date.now() + 24*60*60*1000);
+      
+      await Session.create({
+        user_id: user.id,
         token,
-        expiresAt: new Date(Date.now() + 24*60*60*1000).toISOString()
+        expires_at: expiresAt,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent']
       });
 
       // Clean up expired sessions
-      const validSessions = sessions.filter(s => new Date(s.expiresAt) > new Date());
-      user.sessions = validSessions;
+      await Session.destroy({
+        where: {
+          user_id: user.id,
+          expires_at: {
+            [Op.lt]: new Date()
+          }
+        }
+      });
 
       // Return sanitized user object
-      const { password: pass, ...userWithoutPassword } = user;
+      const userData = user.toJSON();
+      delete userData.password;
 
       res.json({
         status: 'success',
         token,
-        user: userWithoutPassword
+        user: userData
       });
     } catch (error) {
       console.error('Login error:', error);
@@ -330,22 +343,14 @@ sessionRouter.post(
   }
 );
 
-// Add this route to handle DELETE /sessions
 sessionRouter.delete('/', authenticate, async (req, res) => {
   try {
-    const user = findUserById(req.user.id);
-    
-    if (!user) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'User not found',
-      });
-    }
-
-    // Remove the current session token
-    if (user.sessions) {
-      user.sessions = user.sessions.filter(session => session.token !== req.token);
-    }
+    // Delete the current session from database
+    await Session.destroy({
+      where: {
+        token: req.token
+      }
+    });
     
     res.json({
       status: 'success',
@@ -363,19 +368,12 @@ sessionRouter.delete('/', authenticate, async (req, res) => {
 
 sessionRouter.delete('/logout', authenticate, async (req, res) => {
   try {
-    const user = findUserById(req.user.id);
-    
-    if (!user) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'User not found',
-      });
-    }
-
-    // Remove the current session token
-    if (user.sessions) {
-      user.sessions = user.sessions.filter(session => session.token !== req.token);
-    }
+    // Delete the current session from database
+    await Session.destroy({
+      where: {
+        token: req.token
+      }
+    });
     
     res.json({
       status: 'success',

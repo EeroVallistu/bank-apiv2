@@ -1,57 +1,77 @@
 const jwt = require('jsonwebtoken');
-const { findUserById } = require('../models/inMemoryStore');
-const { AuthenticationError } = require('../utils/errors');
+const { findUserById, Session } = require('../models');
 
-const authenticate = (req, res, next) => {
+async function authenticate(req, res, next) {
   try {
-    // Get token from Authorization header
     const authHeader = req.headers.authorization;
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new AuthenticationError('Authentication token required');
+      return res.status(401).json({
+        status: 'error',
+        message: 'Authentication required. Please provide a valid token.'
+      });
     }
 
     const token = authHeader.split(' ')[1];
     
-    // Verify token
+    if (!token) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Authentication token missing'
+      });
+    }
+
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
-      if (err.name === 'TokenExpiredError') {
-        throw new AuthenticationError('Token expired');
-      }
-      throw new AuthenticationError('Invalid token');
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid or expired token'
+      });
     }
-    
-    // Get user
-    const user = findUserById(decoded.userId);
+
+    // Find the session in the database
+    const session = await Session.findOne({
+      where: {
+        token: token,
+        expires_at: {
+          [require('sequelize').Op.gt]: new Date()
+        }
+      }
+    });
+
+    if (!session) {
+      return res.status(401).json({
+        status: 'error', 
+        message: 'Session expired or invalid'
+      });
+    }
+
+    // Find the user
+    const user = await findUserById(decoded.userId);
     
     if (!user) {
-      throw new AuthenticationError('User not found');
+      return res.status(401).json({
+        status: 'error',
+        message: 'User not found'
+      });
     }
-    
-    // Check if token exists in user's sessions
-    const sessionExists = user.sessions.some(session => 
-      session.token === token && new Date(session.expiresAt) > new Date()
-    );
-    
-    if (!sessionExists) {
-      throw new AuthenticationError('Session invalid or expired');
-    }
-    
-    // Add user info to request
-    req.user = {
-      id: user.id,
-      username: user.username
-    };
+
+    // Add user and token to request object
+    req.user = { id: user.id };
     req.token = token;
+    req.sessionId = decoded.sessionId;
     
+    // Continue to the next middleware/route handler
     next();
   } catch (error) {
-    next(error);
+    console.error('Auth middleware error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Authentication failed'
+    });
   }
-};
+}
 
-module.exports = {
-  authenticate
-};
+module.exports = { authenticate };

@@ -12,6 +12,9 @@ const scheduler = require('./utils/scheduler');
 const cache = require('./middleware/cache');
 const errorHandler = require('./middleware/errorHandler');
 
+// Database connection
+const { sequelize, testConnection } = require('./models/database');
+
 // Import in-memory data store
 const dataStore = require('./models/inMemoryStore');
 
@@ -98,9 +101,32 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 // Start the server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`API Documentation available at http://localhost:${PORT}/docs`);
+  
+  // Test database connection if enabled
+  if (process.env.USE_DATABASE === 'true') {
+    try {
+      console.log('Testing database connection...');
+      const connected = await testConnection();
+      
+      if (connected) {
+        console.log('Syncing database models...');
+        // Sync all models with the database
+        // In production, you might want to use migration tools instead
+        await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
+        console.log('Database sync complete');
+      } else {
+        console.error('Failed to connect to database. Falling back to in-memory store.');
+      }
+    } catch (error) {
+      console.error('Database initialization error:', error);
+      console.log('Using in-memory data store as fallback.');
+    }
+  } else {
+    console.log('Using in-memory data store (database connection disabled).');
+  }
   
   // Start scheduler for background tasks
   scheduler.start();
