@@ -89,6 +89,12 @@ class Scheduler {
       }
     }, 5 * 60 * 1000);
     
+    // Run immediate bank registration check on startup
+    console.log('Running initial bank registration check...');
+    this.checkBankRegistration().catch(error => {
+      console.error('Error during initial bank registration check:', error);
+    });
+    
     this.running = true;
     console.log('Scheduler started');
   }
