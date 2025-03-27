@@ -20,7 +20,12 @@ const sequelize = new Sequelize(
     port: dbConfig.port,
     dialect: dbConfig.dialect, // Explicit dialect is required
     logging: dbConfig.logging,
-    define: dbConfig.define,
+    define: {
+      ...dbConfig.define,
+      // Never automatically create or update tables
+      // This helps prevent index duplication
+      sync: { force: false, alter: false }
+    },
     pool: dbConfig.pool,
     dialectOptions: dbConfig.dialectOptions
   }
@@ -38,4 +43,4 @@ async function testConnection() {
   }
 }
 
-module.exports = { sequelize, testConnection }; 
+module.exports = { sequelize, testConnection };

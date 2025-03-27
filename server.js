@@ -230,22 +230,24 @@ app.use(errorHandler);
 // Database connection and sync
 async function initializeApp() {
   try {
-    console.log('Checking database connection...');
-    const connected = await testConnection();
-    
-    if (!connected) {
-      console.error('Database connection failed');
-      console.log('Using in-memory data store as fallback.');
-      startServer();
-      return;
-    }
-    
-    console.log('Database connection successful.');
-    
-    // Synchronize bank prefix between .env and database
-    const prefixUpdated = await DatabaseSync.syncBankPrefix();
-    if (prefixUpdated) {
-      console.log('Bank prefix updated - all account numbers have been automatically updated');
+    // Check if we should use database
+    if (process.env.USE_DATABASE === 'true') {
+      // Test database connection
+      console.log('Testing database connection...');
+      const connected = await testConnection();
+      
+      if (!connected) {
+        console.error('Failed to connect to database. Exiting.');
+        process.exit(1);
+      }
+      
+      // Only sync models structure, do NOT force recreation of tables
+      console.log('Syncing database models...');
+      await sequelize.sync({ alter: false }); // Changed from alter: true to prevent modifying tables
+      
+      // Update bank prefix in database to match .env file
+      console.log('Checking bank prefix...');
+      await DatabaseSync.syncBankPrefix();
     }
     
     // Setup .env file watcher to detect changes while app is running
