@@ -384,46 +384,6 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
-
-    patch:
-      summary: Update account details
-      tags: [Accounts]
-      parameters:
-        - in: path
-          name: accountNumber
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                  description: New account name
-      responses:
-        '200':
-          description: Account updated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    $ref: '#/components/schemas/Account'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '404':
-          description: Account not found
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
   /transfers:
     get:
       summary: Get all transactions for the user
