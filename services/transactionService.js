@@ -1,10 +1,9 @@
 const { 
   findAccountByNumber, 
   findUserById, 
-  accounts, 
-  transactions,
+  Transaction,
   generateTransactionId
-} = require('../models/inMemoryStore');
+} = require('../models');
 const centralBankService = require('./centralBankService');
 const currencyService = require('./currencyService');
 const keyManager = require('../utils/keyManager');
@@ -28,7 +27,7 @@ class TransactionService {
    */
   async processIncomingTransaction(payload) {
     // Validate destination account exists
-    const destinationAccount = findAccountByNumber(payload.accountTo);
+    const destinationAccount = await findAccountByNumber(payload.accountTo);
     if (!destinationAccount) {
       throw new NotFoundError(
         'Account',
@@ -37,7 +36,7 @@ class TransactionService {
     }
 
     // Find the destination account owner
-    const destinationUser = findUserById(destinationAccount.userId);
+    const destinationUser = await findUserById(destinationAccount.user_id);
     if (!destinationUser) {
       throw new NotFoundError(
         'User', 
@@ -67,32 +66,44 @@ class TransactionService {
     }
 
     // Create transaction record with currency info
-    const transaction = {
-      id: generateTransactionId(),
-      fromAccount: payload.accountFrom,
-      toAccount: payload.accountTo,
+    const transaction = await Transaction.create({
+      from_account: payload.accountFrom,
+      to_account: payload.accountTo,
       amount,
-      originalAmount: parseFloat(payload.amount),
-      originalCurrency: payload.currency,
+      original_amount: parseFloat(payload.amount),
+      original_currency: payload.currency,
       currency: destinationAccount.currency,
-      exchangeRate,
+      exchange_rate: exchangeRate,
       explanation: payload.explanation,
-      senderName: payload.senderName,
-      receiverName: destinationUser.fullName,
-      isExternal: true,
+      sender_name: payload.senderName,
+      receiver_name: destinationUser.full_name,
+      is_external: true,
       status: 'completed',
-      createdAt: new Date().toISOString()
-    };
+      created_at: new Date()
+    });
 
     // Credit the destination account with converted amount
     destinationAccount.balance += amount;
-    
-    // Add transaction to store
-    transactions.push(transaction);
+    await destinationAccount.save();
 
     return {
-      receiverName: destinationUser.fullName,
-      transaction
+      receiverName: destinationUser.full_name,
+      transaction: {
+        id: transaction.id,
+        fromAccount: transaction.from_account,
+        toAccount: transaction.to_account,
+        amount: transaction.amount,
+        originalAmount: transaction.original_amount,
+        originalCurrency: transaction.original_currency,
+        currency: transaction.currency,
+        exchangeRate: transaction.exchange_rate,
+        explanation: transaction.explanation,
+        senderName: transaction.sender_name,
+        receiverName: transaction.receiver_name,
+        isExternal: transaction.is_external,
+        status: transaction.status,
+        createdAt: transaction.created_at
+      }
     };
   }
 
