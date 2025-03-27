@@ -185,8 +185,8 @@ router.post(
       const { fromAccount, toAccount, amount, explanation } = req.body;
 
       // Check if source account belongs to user
-      const sourceAccount = findAccountByNumber(fromAccount);
-      if (!sourceAccount || sourceAccount.userId !== req.user.id) {
+      const sourceAccount = await findAccountByNumber(fromAccount);
+      if (!sourceAccount || sourceAccount.user_id !== req.user.id) {
         return res.status(404).json({
           status: 'error',
           message: 'Source account not found or doesn\'t belong to you'
@@ -194,7 +194,7 @@ router.post(
       }
 
       // Check if destination account exists in our bank
-      const destinationAccount = findAccountByNumber(toAccount);
+      const destinationAccount = await findAccountByNumber(toAccount);
       if (!destinationAccount) {
         return res.status(404).json({
           status: 'error',
