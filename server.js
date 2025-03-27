@@ -34,6 +34,54 @@ const PORT = process.env.PORT || 5000;
 if (process.env.NODE_ENV === 'development') {
 }
 
+// Function to sync settings from .env to database
+async function syncSettingsFromEnv() {
+  if (process.env.USE_DATABASE !== 'true') return;
+  
+  try {
+    const { Setting } = require('./models');
+    
+    // Sync bank prefix from .env
+    if (process.env.BANK_PREFIX) {
+      const [setting] = await Setting.findOrCreate({
+        where: { name: 'bank_prefix' },
+        defaults: { 
+          value: process.env.BANK_PREFIX,
+          description: 'Bank prefix for account numbers'
+        }
+      });
+      
+      // If existing value is different from .env, update it
+      if (setting.value !== process.env.BANK_PREFIX) {
+        console.log(`Updating bank prefix from ${setting.value} to ${process.env.BANK_PREFIX}`);
+        await setting.update({ value: process.env.BANK_PREFIX });
+        return true; // Indicate that a change was made
+      }
+    }
+    
+    // Sync bank name from .env
+    if (process.env.BANK_NAME) {
+      const [setting] = await Setting.findOrCreate({
+        where: { name: 'bank_name' },
+        defaults: { 
+          value: process.env.BANK_NAME,
+          description: 'Name of the bank'
+        }
+      });
+      
+      if (setting.value !== process.env.BANK_NAME) {
+        await setting.update({ value: process.env.BANK_NAME });
+      }
+    }
+    
+    console.log('Environment settings synced to database');
+    return false; // No changes made
+  } catch (error) {
+    console.error('Failed to sync settings from .env to database:', error);
+    return false;
+  }
+}
+
 // Serve static files from public directory
 app.use(express.static('public'));
 
@@ -89,6 +137,29 @@ app.get('/jwks.json', (req, res) => {
   }
 });
 
+// Admin endpoint to force settings sync
+app.post('/admin/sync-settings', async (req, res) => {
+  try {
+    // Reload .env file to get latest values
+    require('dotenv').config();
+    
+    // Sync settings
+    const changed = await syncSettingsFromEnv();
+    
+    res.status(200).json({
+      status: 'success',
+      message: changed ? 'Settings updated from environment' : 'No changes needed',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error syncing settings:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to sync settings'
+    });
+  }
+});
+
 // 404 handler for undefined routes
 app.use((req, res) => {
   res.status(404).json({
@@ -117,6 +188,16 @@ app.listen(PORT, async () => {
         // In production, you might want to use migration tools instead
         await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
         console.log('Database sync complete');
+        
+        // Sync settings from .env to database
+        await syncSettingsFromEnv();
+        
+        // Set up periodic check for env changes (every 5 minutes)
+        setInterval(async () => {
+          // Reload .env file to get latest values
+          require('dotenv').config();
+          await syncSettingsFromEnv();
+        }, 5 * 60 * 1000);
       } else {
         console.error('Failed to connect to database. Falling back to in-memory store.');
       }

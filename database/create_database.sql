@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     reference_id VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (from_account) REFERENCES accounts(account_number) ON UPDATE CASCADE,
+    FOREIGN KEY (to_account) REFERENCES accounts(account_number) ON UPDATE CASCADE,
     INDEX idx_from_account (from_account),
     INDEX idx_to_account (to_account),
     INDEX idx_status (status),
@@ -120,4 +122,44 @@ INSERT INTO settings (name, value, description) VALUES
 ('bank_name', 'Eero Bank', 'Name of the bank'),
 ('bank_prefix', 'cc6', 'Bank prefix for account numbers'),
 ('transaction_fee', '0.50', 'Fee for each transaction in the default currency'),
-('maintenance_mode', 'false', 'Whether the system is in maintenance mode'); 
+('maintenance_mode', 'false', 'Whether the system is in maintenance mode');
+
+-- Add trigger to update existing account numbers when bank prefix changes
+DELIMITER //
+CREATE TRIGGER after_update_bank_prefix
+AFTER UPDATE ON settings
+FOR EACH ROW
+BEGIN
+    DECLARE old_prefix VARCHAR(3);
+    DECLARE new_prefix VARCHAR(3);
+    
+    -- Only proceed if this is the bank_prefix setting being updated
+    IF NEW.name = 'bank_prefix' AND OLD.value != NEW.value THEN
+        SET old_prefix = OLD.value;
+        SET new_prefix = NEW.value;
+        
+        -- Update all existing account numbers with the new prefix
+        UPDATE accounts 
+        SET account_number = CONCAT(new_prefix, SUBSTRING(account_number, LENGTH(old_prefix) + 1))
+        WHERE account_number LIKE CONCAT(old_prefix, '%');
+        
+        -- Log the prefix change
+        INSERT INTO logs (
+            user_id,
+            action,
+            entity_type,
+            entity_id,
+            details
+        ) VALUES (
+            NULL, -- System action
+            'BANK_PREFIX_CHANGED',
+            'settings',
+            NEW.id,
+            JSON_OBJECT(
+                'old_prefix', old_prefix,
+                'new_prefix', new_prefix
+            )
+        );
+    END IF;
+END //
+DELIMITER ; 

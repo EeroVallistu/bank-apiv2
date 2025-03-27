@@ -12,8 +12,17 @@ BEGIN
     DECLARE new_account_number VARCHAR(50);
     DECLARE bank_prefix VARCHAR(3);
     
-    -- Get bank prefix from settings
-    SELECT value INTO bank_prefix FROM settings WHERE name = 'bank_prefix' LIMIT 1;
+    -- Get current bank prefix from settings (ensure latest value)
+    SELECT value INTO bank_prefix FROM settings WHERE name = 'bank_prefix' ORDER BY updated_at DESC LIMIT 1;
+    
+    -- Set default if no prefix found
+    IF bank_prefix IS NULL THEN
+        SET bank_prefix = 'cc6';
+        
+        -- Insert default prefix if missing
+        INSERT IGNORE INTO settings (name, value, description) 
+        VALUES ('bank_prefix', bank_prefix, 'Bank prefix for account numbers');
+    END IF;
     
     -- Generate account number
     SET new_account_number = CONCAT(
