@@ -2,35 +2,49 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { validateTransaction } = require('../middleware/validators');
-const Account = require('../models/Account');
-const Transaction = require('../models/Transaction');
-const User = require('../models/User');
+const { sequelize, Account, Transaction, User } = require('../models');
+const { Op } = require('sequelize');
 
 // List all transfers
 router.get('/', authenticate, async (req, res) => {
   try {
     // Get user accounts
     const accounts = await Account.findAll({ 
-      where: { userId: req.user.id },
-      attributes: ['accountNumber']
+      where: { user_id: req.user.id },
+      attributes: ['account_number']
     });
     
-    const accountNumbers = accounts.map(acc => acc.accountNumber);
+    const accountNumbers = accounts.map(acc => acc.account_number);
     
     // Find transactions where user is sender or receiver
     const transactions = await Transaction.findAll({
       where: {
         [Op.or]: [
-          { fromAccount: { [Op.in]: accountNumbers } },
-          { toAccount: { [Op.in]: accountNumbers } }
+          { from_account: { [Op.in]: accountNumbers } },
+          { to_account: { [Op.in]: accountNumbers } }
         ]
       },
-      order: [['createdAt', 'DESC']]
+      order: [['created_at', 'DESC']]
     });
+    
+    // Format transaction data for response
+    const formattedTransactions = transactions.map(tx => ({
+      id: tx.id,
+      fromAccount: tx.from_account,
+      toAccount: tx.to_account,
+      amount: parseFloat(tx.amount),
+      currency: tx.currency,
+      explanation: tx.explanation,
+      status: tx.status,
+      createdAt: tx.created_at,
+      senderName: tx.sender_name,
+      receiverName: tx.receiver_name,
+      isExternal: tx.is_external
+    }));
     
     res.status(200).json({
       status: 'success',
-      data: transactions
+      data: formattedTransactions
     });
   } catch (error) {
     console.error('Error fetching transactions:', error);
@@ -78,23 +92,38 @@ router.get('/:id', authenticate, async (req, res) => {
     
     // Get user accounts
     const accounts = await Account.findAll({ 
-      where: { userId: req.user.id },
-      attributes: ['accountNumber']
+      where: { user_id: req.user.id },
+      attributes: ['account_number']
     });
     
-    const accountNumbers = accounts.map(acc => acc.accountNumber);
+    const accountNumbers = accounts.map(acc => acc.account_number);
     
     // Check if user is involved in this transaction
-    if (!accountNumbers.includes(transaction.fromAccount) && !accountNumbers.includes(transaction.toAccount)) {
+    if (!accountNumbers.includes(transaction.from_account) && !accountNumbers.includes(transaction.to_account)) {
       return res.status(403).json({
         status: 'error',
         message: 'You don\'t have access to this transaction'
       });
     }
     
+    // Format the response
+    const formattedTransaction = {
+      id: transaction.id,
+      fromAccount: transaction.from_account,
+      toAccount: transaction.to_account,
+      amount: parseFloat(transaction.amount),
+      currency: transaction.currency,
+      explanation: transaction.explanation,
+      senderName: transaction.sender_name,
+      receiverName: transaction.receiver_name,
+      status: transaction.status,
+      isExternal: transaction.is_external,
+      createdAt: transaction.created_at
+    };
+    
     res.status(200).json({
       status: 'success',
-      data: transaction
+      data: formattedTransaction
     });
   } catch (error) {
     console.error('Error fetching transaction:', error);

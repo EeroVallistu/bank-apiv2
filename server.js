@@ -24,9 +24,6 @@ try {
   console.log('Scheduler module not available or not implemented yet');
 }
 
-// Import in-memory data store
-const dataStore = require('./models/inMemoryStore');
-
 // Then import routes
 const { userRoutes, sessionRoutes } = require('./routes/auth');
 const accountRoutes = require('./routes/accounts');

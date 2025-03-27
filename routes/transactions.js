@@ -352,9 +352,9 @@ router.post(
 
       const { fromAccount, toAccount, amount, explanation } = req.body;
 
-      // Check if source account belongs to user
-      const sourceAccount = findAccountByNumber(fromAccount);
-      if (!sourceAccount || sourceAccount.userId !== req.user.id) {
+      // Check if source account belongs to user using database query
+      const sourceAccount = await findAccountByNumber(fromAccount);
+      if (!sourceAccount || sourceAccount.user_id !== req.user.id) {
         return res.status(404).json({
           status: 'error',
           message: 'Source account not found or doesn\'t belong to you'
@@ -381,113 +381,158 @@ router.post(
       }
 
       // Find source account owner for the sender name
-      const sourceUser = findUserById(sourceAccount.userId);
+      const sourceUser = await findUserById(sourceAccount.user_id);
 
-      // Create a transaction
-      const transaction = {
-        id: generateTransactionId(),
-        fromAccount,
-        toAccount,
-        amount: parseFloat(amount),
-        originalAmount: parseFloat(amount),
-        originalCurrency: sourceAccount.currency,
-        currency: sourceAccount.currency,
-        exchangeRate: 1, // Will be updated by receiving bank
-        explanation,
-        senderName: sourceUser.fullName,
-        bankPrefix,
-        isExternal: true,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      };
-
-      // Add to transactions array
-      transactions.push(transaction);
-
+      // Start a database transaction to ensure consistency
+      const dbTransaction = await sequelize.transaction();
+      
       try {
-        console.log(`Looking up bank with prefix: ${bankPrefix}`);
-        
-        // Get destination bank details from central bank
-        const bankDetails = await centralBankService.getBankDetails(bankPrefix);
-        
-        if (!bankDetails) {
-          transaction.status = 'failed';
-          transaction.errorMessage = 'Destination bank not found';
+        // Create a transaction record in database
+        const transaction = await Transaction.create({
+          from_account: fromAccount,
+          to_account: toAccount,
+          amount: parseFloat(amount),
+          original_amount: parseFloat(amount),
+          original_currency: sourceAccount.currency,
+          currency: sourceAccount.currency,
+          exchange_rate: 1,
+          explanation,
+          sender_name: sourceUser.full_name,
+          is_external: true,
+          status: 'pending',
+          created_at: new Date()
+        }, { transaction: dbTransaction });
+
+        try {
+          console.log(`Looking up bank with prefix: ${bankPrefix}`);
           
-          console.error(`No bank found with prefix ${bankPrefix}`);
-          return res.status(404).json({
+          // Get destination bank details from central bank
+          const bankDetails = await centralBankService.getBankDetails(bankPrefix);
+          
+          if (!bankDetails) {
+            // Update transaction status to failed
+            await transaction.update({ 
+              status: 'failed',
+              explanation: explanation + ' (Destination bank not found)'
+            }, { transaction: dbTransaction });
+            
+            await dbTransaction.commit();
+            
+            console.error(`No bank found with prefix ${bankPrefix}`);
+            return res.status(404).json({
+              status: 'error',
+              message: 'Destination bank not found'
+            });
+          }
+          
+          console.log(`Found bank: ${bankDetails.name} (${bankDetails.bankPrefix})`);
+          console.log(`Transaction URL: ${bankDetails.transactionUrl}`);
+
+          // Update transaction status to in-progress
+          await transaction.update({ status: 'inProgress' }, { transaction: dbTransaction });
+
+          // Prepare payload for B2B transaction
+          const payload = {
+            accountFrom: fromAccount,
+            accountTo: toAccount,
+            currency: sourceAccount.currency,
+            amount,
+            explanation,
+            senderName: sourceUser.full_name,
+            originalCurrency: sourceAccount.currency
+          };
+
+          // Sign the payload with our private key
+          const jwtToken = keyManager.sign(payload);
+          
+          console.log(`Sending transaction to ${bankDetails.transactionUrl}`);
+          
+          // Send to destination bank's B2B endpoint
+          const response = await fetch(bankDetails.transactionUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ jwt: jwtToken })
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Destination bank responded with error: ${response.status}`, errorText);
+            
+            // Update transaction as failed
+            await transaction.update({ 
+              status: 'failed',
+              explanation: explanation + ` (Error: ${response.status})`
+            }, { transaction: dbTransaction });
+            
+            await dbTransaction.commit();
+            
+            throw new Error(`Destination bank responded with status: ${response.status} - ${errorText}`);
+          }
+
+          const result = await response.json();
+          console.log(`Transaction successful:`, result);
+          
+          // Update transaction with receiver name if provided
+          let updateFields = { status: 'completed' };
+          if (result && result.receiverName) {
+            updateFields.receiver_name = result.receiverName;
+          }
+          
+          await transaction.update(updateFields, { transaction: dbTransaction });
+
+          // Update source account balance
+          sourceAccount.balance -= parseFloat(amount);
+          await sourceAccount.save({ transaction: dbTransaction });
+          
+          // Commit the database transaction
+          await dbTransaction.commit();
+
+          // Format response data
+          const transactionData = {
+            id: transaction.id,
+            fromAccount: transaction.from_account,
+            toAccount: transaction.to_account,
+            amount: parseFloat(transaction.amount),
+            currency: transaction.currency,
+            explanation: transaction.explanation,
+            senderName: transaction.sender_name,
+            receiverName: transaction.receiver_name,
+            status: 'completed',
+            createdAt: transaction.created_at
+          };
+
+          res.status(201).json({
+            status: 'success',
+            data: transactionData
+          });
+        } catch (error) {
+          // Transaction failed
+          console.error('External transfer error:', error);
+          
+          // Only rollback if we haven't committed already
+          if (!dbTransaction.finished) {
+            await transaction.update({ 
+              status: 'failed',
+              explanation: explanation + ` (Error: ${error.message})`
+            }, { transaction: dbTransaction });
+            
+            await dbTransaction.commit();
+          }
+          
+          res.status(500).json({
             status: 'error',
-            message: 'Destination bank not found'
+            message: `External transfer failed: ${error.message}`
           });
         }
-        
-        console.log(`Found bank: ${bankDetails.name} (${bankDetails.bankPrefix})`);
-        console.log(`Transaction URL: ${bankDetails.transactionUrl}`);
-
-        // Update transaction status to in-progress
-        transaction.status = 'inProgress';
-
-        // Prepare payload for B2B transaction
-        const payload = {
-          accountFrom: fromAccount,
-          accountTo: toAccount,
-          currency: sourceAccount.currency,
-          amount,
-          explanation,
-          senderName: sourceUser.fullName,
-          originalCurrency: sourceAccount.currency
-        };
-
-        // Sign the payload with our private key
-        const jwtToken = keyManager.sign(payload);
-        
-        console.log(`Sending transaction to ${bankDetails.transactionUrl}`);
-        
-        // Send to destination bank's B2B endpoint
-        const response = await fetch(bankDetails.transactionUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ jwt: jwtToken })
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Destination bank responded with error: ${response.status}`, errorText);
-          throw new Error(`Destination bank responded with status: ${response.status} - ${errorText}`);
+      } catch (dbError) {
+        // Rollback the transaction on database error
+        if (!dbTransaction.finished) {
+          await dbTransaction.rollback();
         }
-
-        const result = await response.json();
-        console.log(`Transaction successful:`, result);
-        
-        // Update receiver name if provided
-        if (result && result.receiverName) {
-          transaction.receiverName = result.receiverName;
-        }
-
-        // Update balances - fix for in-memory data
-        sourceAccount.balance -= parseFloat(amount);
-
-        // Complete the transaction
-        transaction.status = 'completed';
-
-        res.status(201).json({
-          status: 'success',
-          data: transaction
-        });
-      } catch (error) {
-        // Transaction failed
-        console.error('External transfer error:', error);
-        
-        transaction.status = 'failed';
-        transaction.errorMessage = error.message;
-        
-        res.status(500).json({
-          status: 'error',
-          message: `External transfer failed: ${error.message}`
-        });
+        throw dbError;
       }
     } catch (error) {
       console.error('Error creating external transaction:', error);
