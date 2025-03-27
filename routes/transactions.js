@@ -224,39 +224,65 @@ router.post(
       }
 
       // Find source account owner for the sender name
-      const sourceUser = findUserById(sourceAccount.userId);
+      const sourceUser = await findUserById(sourceAccount.user_id);
       // Find destination account owner for the receiver name
-      const destinationUser = findUserById(destinationAccount.userId);
+      const destinationUser = await findUserById(destinationAccount.user_id);
 
-      // Create a transaction
-      const transaction = {
-        id: generateTransactionId(),
-        fromAccount,
-        toAccount,
-        amount: convertedAmount,
-        originalAmount: parseFloat(amount),
-        originalCurrency: sourceAccount.currency,
-        currency: destinationAccount.currency,
-        exchangeRate,
-        explanation,
-        senderName: sourceUser.fullName,
-        receiverName: destinationUser.fullName,
-        isExternal: false,
-        status: 'completed',
-        createdAt: new Date().toISOString()
-      };
+      // Start a database transaction to ensure consistency
+      const dbTransaction = await sequelize.transaction();
 
-      // Update balances
-      sourceAccount.balance -= parseFloat(amount);
-      destinationAccount.balance += convertedAmount;
+      try {
+        // Create a transaction record in database
+        const transaction = await Transaction.create({
+          from_account: fromAccount,
+          to_account: toAccount,
+          amount: convertedAmount,
+          original_amount: parseFloat(amount),
+          original_currency: sourceAccount.currency,
+          currency: destinationAccount.currency,
+          exchange_rate: exchangeRate,
+          explanation,
+          sender_name: sourceUser.full_name,
+          receiver_name: destinationUser.full_name,
+          is_external: false,
+          status: 'completed',
+          created_at: new Date()
+        }, { transaction: dbTransaction });
 
-      // Add transaction to store
-      transactions.push(transaction);
+        // Update balances
+        sourceAccount.balance -= parseFloat(amount);
+        await sourceAccount.save({ transaction: dbTransaction });
+        
+        destinationAccount.balance += convertedAmount;
+        await destinationAccount.save({ transaction: dbTransaction });
 
-      res.status(201).json({
-        status: 'success',
-        data: transaction
-      });
+        // Commit the transaction
+        await dbTransaction.commit();
+
+        // Format response data
+        const transactionData = {
+          id: transaction.id,
+          fromAccount: transaction.from_account,
+          toAccount: transaction.to_account,
+          amount: parseFloat(transaction.amount),
+          currency: transaction.currency,
+          explanation: transaction.explanation,
+          senderName: transaction.sender_name,
+          receiverName: transaction.receiver_name,
+          status: transaction.status,
+          createdAt: transaction.created_at
+        };
+
+        res.status(201).json({
+          status: 'success',
+          data: transactionData
+        });
+        
+      } catch (dbError) {
+        // Rollback the transaction on error
+        await dbTransaction.rollback();
+        throw dbError;
+      }
     } catch (error) {
       console.error('Error creating transaction:', error);
       res.status(500).json({
