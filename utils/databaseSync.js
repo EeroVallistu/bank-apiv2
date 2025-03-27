@@ -37,24 +37,36 @@ class DatabaseSync {
         console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
         const oldPrefix = prefixSetting.value;
         
-        // Use a completely manual approach with pure SQL
-        try {
-          const sql = `UPDATE settings SET value = ? WHERE id = ?`;
-          await sequelize.query(sql, {
-            type: sequelize.QueryTypes.UPDATE,
-            replacements: [envBankPrefix, prefixSetting.id],
-            raw: true,
-            plain: true
-          });
-          
-          console.log(`All accounts with prefix ${oldPrefix} have been updated to ${envBankPrefix}`);
-          console.log(`This change was applied automatically by the database trigger 'after_update_bank_prefix'`);
-          
-          return true;
-        } catch (error) {
-          console.error('SQL Error:', error);
-          throw error;
+        // Get the full record data including timestamps
+        const fullRecord = await Setting.findByPk(prefixSetting.id, { raw: true });
+        
+        if (!fullRecord) {
+          throw new Error('Failed to retrieve complete record data');
         }
+        
+        // Use an INSERT ... ON DUPLICATE KEY UPDATE approach
+        // This preserves the created_at timestamp
+        await sequelize.query(
+          `INSERT INTO settings (id, name, value, description, created_at, updated_at) 
+           VALUES (?, ?, ?, ?, ?, NOW()) 
+           ON DUPLICATE KEY UPDATE value = ?`,
+          {
+            replacements: [
+              fullRecord.id, 
+              fullRecord.name,
+              envBankPrefix,
+              fullRecord.description,
+              fullRecord.created_at,
+              envBankPrefix
+            ],
+            type: sequelize.QueryTypes.INSERT
+          }
+        );
+        
+        console.log(`All accounts with prefix ${oldPrefix} have been updated to ${envBankPrefix}`);
+        console.log(`This change was applied automatically by the database trigger 'after_update_bank_prefix'`);
+        
+        return true;
       }
       
       return false;
