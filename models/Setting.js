@@ -19,11 +19,6 @@ const Setting = sequelize.define('Setting', {
   description: {
     type: DataTypes.STRING(255),
     allowNull: true
-  },
-  // Only define updated_at if it actually exists in your database
-  updated_at: {
-    type: DataTypes.DATE,
-    allowNull: true
   }
 }, {
   tableName: 'settings',

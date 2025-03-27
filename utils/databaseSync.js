@@ -18,42 +18,76 @@ class DatabaseSync {
         return false;
       }
       
+      console.log(`Current bank prefix in .env: ${envBankPrefix}`);
+      
       // Get bank prefix from database settings
-      const prefixSetting = await Setting.findOne({
-        where: { name: 'bank_prefix' }
-      });
+      let prefixSetting;
+      try {
+        prefixSetting = await Setting.findOne({
+          where: { name: 'bank_prefix' }
+        });
+      } catch (findError) {
+        console.error('Error finding bank_prefix in database:', findError);
+        return false;
+      }
       
       if (!prefixSetting) {
-        // If no prefix setting exists, create one
+        // If no prefix setting exists, create one using direct SQL
         console.log('Creating new bank_prefix setting in database');
         
-        // Use direct SQL to avoid any Sequelize timestamp handling
-        await sequelize.query(
-          `INSERT INTO settings (name, value, description) VALUES (?, ?, ?)`,
-          {
-            replacements: ['bank_prefix', envBankPrefix, 'Bank prefix for account numbers'],
-            type: sequelize.QueryTypes.INSERT
-          }
-        );
-        return true;
+        try {
+          await sequelize.query(
+            `INSERT INTO settings (name, value, description) VALUES (?, ?, ?)`,
+            {
+              replacements: ['bank_prefix', envBankPrefix, 'Bank prefix for account numbers'],
+              type: sequelize.QueryTypes.INSERT
+            }
+          );
+          console.log(`Successfully created bank_prefix setting with value: ${envBankPrefix}`);
+          return true;
+        } catch (insertError) {
+          console.error('Error creating bank_prefix setting:', insertError);
+          return false;
+        }
       } else if (prefixSetting.value !== envBankPrefix) {
         // Update existing prefix if it doesn't match
-        console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
+        console.log(`Updating bank prefix in database from '${prefixSetting.value}' to '${envBankPrefix}'`);
         const oldPrefix = prefixSetting.value;
         
-        // Use direct SQL to update only the value field
-        await sequelize.query(
-          `UPDATE settings SET value = ? WHERE id = ?`,
-          {
-            replacements: [envBankPrefix, prefixSetting.id],
-            type: sequelize.QueryTypes.UPDATE
+        try {
+          // Use direct SQL with explicit debugging
+          const result = await sequelize.query(
+            `UPDATE settings SET value = ? WHERE name = ?`,
+            {
+              replacements: [envBankPrefix, 'bank_prefix'],
+              type: sequelize.QueryTypes.UPDATE
+            }
+          );
+          
+          console.log('SQL update result:', result);
+          console.log(`All accounts with prefix ${oldPrefix} should be updated to ${envBankPrefix}`);
+          console.log(`This change should be applied automatically by the database trigger 'after_update_bank_prefix'`);
+          
+          // Verify the update
+          const verifyResult = await sequelize.query(
+            `SELECT value FROM settings WHERE name = 'bank_prefix'`,
+            {
+              type: sequelize.QueryTypes.SELECT
+            }
+          );
+          
+          console.log('Verification result:', verifyResult);
+          if (verifyResult.length > 0) {
+            console.log(`Current bank_prefix in database: ${verifyResult[0].value}`);
           }
-        );
-        
-        console.log(`All accounts with prefix ${oldPrefix} have been updated to ${envBankPrefix}`);
-        console.log(`This change was applied automatically by the database trigger 'after_update_bank_prefix'`);
-        
-        return true;
+          
+          return true;
+        } catch (updateError) {
+          console.error('Error updating bank_prefix setting:', updateError);
+          return false;
+        }
+      } else {
+        console.log(`Bank prefix already up to date in database: ${prefixSetting.value}`);
       }
       
       return false;
