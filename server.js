@@ -20,6 +20,9 @@ const DatabaseSync = require('./utils/databaseSync');
 let scheduler;
 try {
   scheduler = require('./utils/scheduler');
+  // Start the scheduler
+  scheduler.start();
+  console.log('Scheduler started successfully');
 } catch (error) {
   console.log('Scheduler module not available or not implemented yet');
 }

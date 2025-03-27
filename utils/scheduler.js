@@ -80,6 +80,15 @@ class Scheduler {
       }
     }, 60 * 60 * 1000);
     
+    // Check bank registration with central bank every 5 minutes
+    this.addTask('checkBankRegistration', async () => {
+      try {
+        await this.checkBankRegistration();
+      } catch (error) {
+        console.error('Error checking bank registration:', error);
+      }
+    }, 5 * 60 * 1000);
+    
     this.running = true;
     console.log('Scheduler started');
   }
