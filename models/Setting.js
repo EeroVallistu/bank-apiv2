@@ -22,9 +22,7 @@ const Setting = sequelize.define('Setting', {
   }
 }, {
   tableName: 'settings',
-  timestamps: false, // No timestamps in the model
-  updatedAt: 'updated_at', // But do track updated_at
-  createdAt: false // No created_at field
+  timestamps: false  // Disable timestamps since they don't exist in the database
 });
 
 module.exports = Setting;
