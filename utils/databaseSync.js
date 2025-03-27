@@ -37,14 +37,10 @@ class DatabaseSync {
         console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
         const oldPrefix = prefixSetting.value;
         
-        // Use a simpler SQL query that only updates the value field
-        // This avoids issues with timestamp fields
+        // Use direct SQL with no timestamp fields
         await sequelize.query(
-          'UPDATE settings SET value = ? WHERE id = ?',
-          {
-            replacements: [envBankPrefix, prefixSetting.id],
-            type: sequelize.QueryTypes.UPDATE
-          }
+          `UPDATE settings SET value = '${envBankPrefix}' WHERE id = ${prefixSetting.id}`,
+          { type: sequelize.QueryTypes.RAW }
         );
         
         // The trigger in the database will handle updating all account numbers
