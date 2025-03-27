@@ -6,9 +6,6 @@ const YAML = require('yamljs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const { sequelize, testConnection } = require('./models/database');
-const DatabaseSync = require('./utils/databaseSync');
-const scheduler = require('./utils/scheduler');
 const fs = require('fs');
 
 // Import middleware
@@ -17,6 +14,7 @@ const errorHandler = require('./middleware/errorHandler');
 
 // Database connection
 const { sequelize, testConnection } = require('./models/database');
+const DatabaseSync = require('./utils/databaseSync');
 
 // Import in-memory data store
 const dataStore = require('./models/inMemoryStore');
