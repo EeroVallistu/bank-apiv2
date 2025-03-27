@@ -26,18 +26,22 @@ class DatabaseSync {
       if (!prefixSetting) {
         // If no prefix setting exists, create one
         console.log('Creating new bank_prefix setting in database');
-        await Setting.create({
-          name: 'bank_prefix',
-          value: envBankPrefix,
-          description: 'Bank prefix for account numbers'
-        });
+        
+        // Use direct SQL to avoid any Sequelize timestamp handling
+        await sequelize.query(
+          `INSERT INTO settings (name, value, description) VALUES (?, ?, ?)`,
+          {
+            replacements: ['bank_prefix', envBankPrefix, 'Bank prefix for account numbers'],
+            type: sequelize.QueryTypes.INSERT
+          }
+        );
         return true;
       } else if (prefixSetting.value !== envBankPrefix) {
         // Update existing prefix if it doesn't match
         console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
         const oldPrefix = prefixSetting.value;
         
-        // Use direct SQL to update only the value field without any timestamp references
+        // Use direct SQL to update only the value field
         await sequelize.query(
           `UPDATE settings SET value = ? WHERE id = ?`,
           {
