@@ -37,11 +37,14 @@ class DatabaseSync {
         console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
         const oldPrefix = prefixSetting.value;
         
-        // Use update method instead of save to avoid timestamp issues
-        await prefixSetting.update({
-          value: envBankPrefix,
-          // No need to manually set timestamps when using update()
-        });
+        // Only update the 'value' field to avoid timestamp issues
+        await Setting.update(
+          { value: envBankPrefix },
+          { 
+            where: { id: prefixSetting.id },
+            fields: ['value'] // Only update the value field
+          }
+        );
         
         // The trigger in the database will handle updating all account numbers
         console.log(`All accounts with prefix ${oldPrefix} have been updated to ${envBankPrefix}`);
