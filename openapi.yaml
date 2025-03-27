@@ -610,39 +610,6 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
-  /transfers/history:
-    get:
-      summary: Get user's transaction history
-      tags: [Transactions]
-      parameters:
-        - in: query
-          name: status
-          schema:
-            type: string
-            enum: [pending, inProgress, completed, failed]
-        - in: query
-          name: type
-          schema:
-            type: string
-            enum: [incoming, outgoing, all]
-      responses:
-        '200':
-          description: Transaction history
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Transaction'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-
   /transfers/incoming:
     post:
       summary: Process incoming transfer
