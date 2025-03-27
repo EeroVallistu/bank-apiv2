@@ -37,7 +37,8 @@ class DatabaseSync {
         console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
         const oldPrefix = prefixSetting.value;
         
-        // Use direct SQL to update only the value field without touching timestamps
+        // Use direct SQL to update only the value field
+        // This avoids any issues with timestamps since the database will handle updated_at automatically
         await sequelize.query(
           `UPDATE settings SET value = ? WHERE id = ?`,
           {
