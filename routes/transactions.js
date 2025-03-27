@@ -431,8 +431,9 @@ router.post(
           console.log(`Found bank: ${bankDetails.name} (${bankDetails.bankPrefix})`);
           console.log(`Transaction URL: ${bankDetails.transactionUrl}`);
 
-          // Update transaction status to in-progress
-          await transaction.update({ status: 'inProgress' }, { transaction: dbTransaction });
+          // Update transaction status to pending instead of inProgress
+          // Fix: Use 'pending' instead of 'inProgress' to match ENUM values
+          await transaction.update({ status: 'pending' }, { transaction: dbTransaction });
 
           // Prepare payload for B2B transaction
           const payload = {
