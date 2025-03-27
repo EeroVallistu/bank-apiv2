@@ -37,37 +37,37 @@ class DatabaseSync {
         console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
         const oldPrefix = prefixSetting.value;
         
-        // Use multi-statement transaction to preserve timestamps
-        const transaction = await sequelize.transaction();
-        
         try {
-          // Update using SQL that preserves created_at and sets updated_at properly
-          await sequelize.query(
-            `UPDATE settings 
-             SET value = :value, 
-                 updated_at = NOW() 
-             WHERE id = :id`,
+          // First get the current timestamp values
+          const result = await sequelize.query(
+            'SELECT created_at FROM settings WHERE id = ?',
             {
-              replacements: { 
-                value: envBankPrefix,
-                id: prefixSetting.id
-              },
-              type: sequelize.QueryTypes.UPDATE,
-              transaction
+              replacements: [prefixSetting.id],
+              type: sequelize.QueryTypes.SELECT
             }
           );
           
-          // Commit the transaction
-          await transaction.commit();
-          
-          // The trigger in the database will handle updating all account numbers
-          console.log(`All accounts with prefix ${oldPrefix} have been updated to ${envBankPrefix}`);
-          console.log(`This change was applied automatically by the database trigger 'after_update_bank_prefix'`);
-          
-          return true;
+          if (result && result.length > 0) {
+            const createdAt = result[0].created_at;
+            
+            // Now update with explicit reference to the existing created_at
+            await sequelize.query(
+              'UPDATE settings SET value = ?, updated_at = NOW(), created_at = ? WHERE id = ?',
+              {
+                replacements: [envBankPrefix, createdAt, prefixSetting.id],
+                type: sequelize.QueryTypes.UPDATE
+              }
+            );
+            
+            // The trigger in the database will handle updating all account numbers
+            console.log(`All accounts with prefix ${oldPrefix} have been updated to ${envBankPrefix}`);
+            console.log(`This change was applied automatically by the database trigger 'after_update_bank_prefix'`);
+            
+            return true;
+          } else {
+            throw new Error('Could not fetch current record data');
+          }
         } catch (error) {
-          // Rollback on error
-          await transaction.rollback();
           throw error;
         }
       }
