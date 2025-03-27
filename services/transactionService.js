@@ -26,85 +26,96 @@ class TransactionService {
    * @returns {Object} Processing result
    */
   async processIncomingTransaction(payload) {
-    // Validate destination account exists
-    const destinationAccount = await findAccountByNumber(payload.accountTo);
-    if (!destinationAccount) {
-      throw new NotFoundError(
-        'Account',
-        `Destination account ${payload.accountTo} not found`
-      );
-    }
-
-    // Find the destination account owner
-    const destinationUser = await findUserById(destinationAccount.user_id);
-    if (!destinationUser) {
-      throw new NotFoundError(
-        'User', 
-        'Destination account owner not found'
-      );
-    }
-
-    // Convert currency if needed
-    let amount = parseFloat(payload.amount);
-    let exchangeRate = 1;
-    
-    if (payload.currency !== destinationAccount.currency) {
-      try {
-        amount = await currencyService.convert(
-          payload.amount,
-          payload.currency,
-          destinationAccount.currency
-        );
-        exchangeRate = amount / parseFloat(payload.amount);
-      } catch (error) {
-        throw new APIError(
-          `Currency conversion failed: ${error.message}`,
-          500,
-          'CURRENCY_CONVERSION_FAILED'
+    try {
+      // Validate destination account exists
+      const destinationAccount = await findAccountByNumber(payload.accountTo);
+      if (!destinationAccount) {
+        throw new NotFoundError(
+          'Account',
+          `Destination account ${payload.accountTo} not found`
         );
       }
-    }
 
-    // Create transaction record with currency info
-    const transaction = await Transaction.create({
-      from_account: payload.accountFrom,
-      to_account: payload.accountTo,
-      amount,
-      original_amount: parseFloat(payload.amount),
-      original_currency: payload.currency,
-      currency: destinationAccount.currency,
-      exchange_rate: exchangeRate,
-      explanation: payload.explanation,
-      sender_name: payload.senderName,
-      receiver_name: destinationUser.full_name,
-      is_external: true,
-      status: 'completed',
-      created_at: new Date()
-    });
-
-    // Credit the destination account with converted amount
-    destinationAccount.balance += amount;
-    await destinationAccount.save();
-
-    return {
-      receiverName: destinationUser.full_name,
-      transaction: {
-        id: transaction.id,
-        fromAccount: transaction.from_account,
-        toAccount: transaction.to_account,
-        amount: transaction.amount,
-        originalAmount: transaction.original_amount,
-        originalCurrency: transaction.original_currency,
-        currency: transaction.currency,
-        exchangeRate: transaction.exchange_rate,
-        explanation: transaction.explanation,
-        senderName: transaction.sender_name,
-        receiverName: transaction.receiver_name,
-        isExternal: transaction.is_external,
-        status: transaction.status,
-        createdAt: transaction.created_at
+      // Find the destination account owner
+      const destinationUser = await findUserById(destinationAccount.user_id);
+      if (!destinationUser) {
+        throw new NotFoundError(
+          'User', 
+          'Destination account owner not found'
+        );
       }
-    };
+
+      // Convert currency if needed
+      let amount = parseFloat(payload.amount);
+      let exchangeRate = 1;
+      
+      if (payload.currency !== destinationAccount.currency) {
+        try {
+          amount = await currencyService.convert(
+            payload.amount,
+            payload.currency,
+            destinationAccount.currency
+          );
+          exchangeRate = amount / parseFloat(payload.amount);
+        } catch (error) {
+          throw new APIError(
+            `Currency conversion failed: ${error.message}`,
+            500,
+            'CURRENCY_CONVERSION_FAILED'
+          );
+        }
+      }
+
+      // Calculate new balance properly using parseFloat to avoid string concatenation issues
+      const newBalance = parseFloat(destinationAccount.balance) + amount;
+      
+      // Format to 2 decimal places to ensure database compatibility
+      const formattedBalance = parseFloat(newBalance.toFixed(2));
+      
+      // Update account balance
+      destinationAccount.balance = formattedBalance;
+      await destinationAccount.save();
+
+      // Create transaction record with currency info
+      const transaction = await Transaction.create({
+        from_account: payload.accountFrom,
+        to_account: payload.accountTo,
+        amount,
+        original_amount: parseFloat(payload.amount),
+        original_currency: payload.currency,
+        currency: destinationAccount.currency,
+        exchange_rate: exchangeRate,
+        explanation: payload.explanation,
+        sender_name: payload.senderName,
+        receiver_name: destinationUser.full_name,
+        is_external: true,
+        status: 'completed',
+        created_at: new Date()
+      });
+
+      return {
+        receiverName: destinationUser.full_name,
+        transaction: {
+          id: transaction.id,
+          fromAccount: transaction.from_account,
+          toAccount: transaction.to_account,
+          amount: transaction.amount,
+          originalAmount: transaction.original_amount,
+          originalCurrency: transaction.original_currency,
+          currency: transaction.currency,
+          exchangeRate: transaction.exchange_rate,
+          explanation: transaction.explanation,
+          senderName: transaction.sender_name,
+          receiverName: transaction.receiver_name,
+          isExternal: transaction.is_external,
+          status: transaction.status,
+          createdAt: transaction.created_at
+        }
+      };
+    } catch (error) {
+      console.error('Error processing incoming transaction:', error);
+      throw error;
+    }
   }
 
   /**

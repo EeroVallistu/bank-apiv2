@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     account_number VARCHAR(50) NOT NULL UNIQUE,
     user_id INT NOT NULL,
-    balance DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+    balance DECIMAL(15, 2) NOT NULL DEFAULT 0.00, -- Keep 2 decimal places for currency
     currency VARCHAR(3) NOT NULL,
     name VARCHAR(100) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,

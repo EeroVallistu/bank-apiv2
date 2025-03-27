@@ -14,12 +14,29 @@ const Account = sequelize.define('Account', {
   },
   user_id: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    references: {
+      model: 'users',
+      key: 'id'
+    }
   },
   balance: {
-    type: DataTypes.DECIMAL(15, 2),
+    type: DataTypes.DECIMAL(15, 2), // Ensure we're using DECIMAL(15,2) for currency
     allowNull: false,
-    defaultValue: 0.00
+    defaultValue: 0.00,
+    get() {
+      // Always return as float to avoid string issues
+      const value = this.getDataValue('balance');
+      return value === null ? null : parseFloat(value);
+    },
+    set(value) {
+      // Always store as formatted decimal to avoid corruption
+      if (value !== null) {
+        this.setDataValue('balance', parseFloat(parseFloat(value).toFixed(2)));
+      } else {
+        this.setDataValue('balance', null);
+      }
+    }
   },
   currency: {
     type: DataTypes.STRING(3),
