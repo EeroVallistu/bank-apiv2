@@ -37,9 +37,9 @@ class DatabaseSync {
         console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
         const oldPrefix = prefixSetting.value;
         
-        // Use raw SQL query to avoid timestamp issues
+        // Use raw SQL query that preserves created_at and updates updated_at
         await sequelize.query(
-          'UPDATE settings SET value = ? WHERE id = ?',
+          'UPDATE settings SET value = ?, created_at = created_at, updated_at = NOW() WHERE id = ?',
           {
             replacements: [envBankPrefix, prefixSetting.id],
             type: sequelize.QueryTypes.UPDATE
