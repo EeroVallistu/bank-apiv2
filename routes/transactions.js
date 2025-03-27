@@ -57,7 +57,7 @@ router.get('/', async (req, res) => {
           { to_account: { [Op.in]: accountNumbers } }
         ]
       },
-      order: [['createdAt', 'DESC']]
+      order: [['created_at', 'DESC']] // Updated to use snake_case (created_at) instead of camelCase (createdAt)
     });
     
     // Format transactions for response
@@ -69,7 +69,7 @@ router.get('/', async (req, res) => {
       currency: tx.currency,
       explanation: tx.explanation,
       status: tx.status,
-      createdAt: tx.createdAt,
+      createdAt: tx.created_at, // Make sure we're using the correct field name here too
       sender_name: tx.sender_name,
       receiver_name: tx.receiver_name,
       is_external: tx.is_external,
