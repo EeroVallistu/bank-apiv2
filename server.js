@@ -16,6 +16,14 @@ const errorHandler = require('./middleware/errorHandler');
 const { sequelize, testConnection } = require('./models/database');
 const DatabaseSync = require('./utils/databaseSync');
 
+// Import scheduler if it exists
+let scheduler;
+try {
+  scheduler = require('./utils/scheduler');
+} catch (error) {
+  console.log('Scheduler module not available or not implemented yet');
+}
+
 // Import in-memory data store
 const dataStore = require('./models/inMemoryStore');
 
@@ -250,8 +258,9 @@ async function initializeApp() {
       console.log('Database sync complete');
     }
     
-    // Start scheduler for background tasks
-    if (process.env.USE_SCHEDULER !== 'false') {
+    // Start scheduler for background tasks if available
+    if (scheduler && typeof scheduler.start === 'function' && process.env.USE_SCHEDULER !== 'false') {
+      console.log('Starting scheduler for background tasks');
       scheduler.start();
     }
     

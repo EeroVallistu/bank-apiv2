@@ -4,60 +4,96 @@ const path = require('path');
 const fs = require('fs');
 
 /**
- * Task Scheduler for handling periodic background tasks
+ * Task scheduler for the bank API
+ * Handles recurring background tasks
  */
 class Scheduler {
   constructor() {
-    this.tasks = new Map();
-    this.isRunning = false;
+    this.tasks = {};
+    this.running = false;
   }
 
   /**
-   * Start all scheduled tasks
+   * Adds a new task to the scheduler
+   * @param {string} name - Task identifier
+   * @param {Function} task - Function to execute
+   * @param {number} interval - Interval in milliseconds
    */
-  start() {
-    if (this.isRunning) return;
-    
-    console.log('Starting scheduler for background tasks');
-    this.isRunning = true;
-    
-    // Schedule bank registration check
-    this.scheduleRegistrationCheck();
-  }
-
-  /**
-   * Stop all scheduled tasks
-   */
-  stop() {
-    if (!this.isRunning) return;
-    
-    console.log('Stopping scheduler');
-    this.isRunning = false;
-    
-    // Clear all intervals
-    for (const [taskName, intervalId] of this.tasks.entries()) {
-      clearInterval(intervalId);
-      console.log(`Stopped task: ${taskName}`);
+  addTask(name, task, interval) {
+    if (this.tasks[name]) {
+      this.removeTask(name);
     }
     
-    this.tasks.clear();
+    console.log(`Adding scheduled task: ${name} (every ${interval}ms)`);
+    this.tasks[name] = {
+      fn: task,
+      interval: interval,
+      lastRun: null,
+      timer: setInterval(() => {
+        try {
+          console.log(`Running scheduled task: ${name}`);
+          task();
+          this.tasks[name].lastRun = new Date();
+        } catch (error) {
+          console.error(`Error in scheduled task ${name}:`, error);
+        }
+      }, interval)
+    };
   }
 
   /**
-   * Schedule bank registration check to run periodically
+   * Removes a task from the scheduler
+   * @param {string} name - Task identifier
    */
-  scheduleRegistrationCheck() {
-    // Define check interval (5 minutes = 300,000 ms)
-    const CHECK_INTERVAL = 5 * 60 * 1000;
+  removeTask(name) {
+    if (this.tasks[name]) {
+      clearInterval(this.tasks[name].timer);
+      delete this.tasks[name];
+      console.log(`Removed scheduled task: ${name}`);
+    }
+  }
+
+  /**
+   * Starts the scheduler with default tasks
+   */
+  start() {
+    if (this.running) return;
     
-    // Run the check immediately
-    this.checkBankRegistration();
+    console.log('Starting scheduler...');
     
-    // Then schedule recurring checks
-    const intervalId = setInterval(() => this.checkBankRegistration(), CHECK_INTERVAL);
-    this.tasks.set('bankRegistrationCheck', intervalId);
+    // Add default tasks
     
-    console.log(`Scheduled bank registration check every 5 minutes`);
+    // Clean expired sessions every hour
+    this.addTask('cleanSessions', async () => {
+      try {
+        if (process.env.USE_DATABASE === 'true') {
+          const { Session } = require('../models');
+          const result = await Session.destroy({
+            where: {
+              expires_at: { [Op.lt]: new Date() }
+            }
+          });
+          console.log(`Cleaned ${result} expired sessions`);
+        }
+      } catch (error) {
+        console.error('Error cleaning expired sessions:', error);
+      }
+    }, 60 * 60 * 1000);
+    
+    this.running = true;
+    console.log('Scheduler started');
+  }
+
+  /**
+   * Stops the scheduler and all tasks
+   */
+  stop() {
+    console.log('Stopping scheduler...');
+    Object.keys(this.tasks).forEach(name => {
+      this.removeTask(name);
+    });
+    this.running = false;
+    console.log('Scheduler stopped');
   }
 
   /**
@@ -115,5 +151,4 @@ class Scheduler {
   }
 }
 
-// Export singleton instance
 module.exports = new Scheduler();
