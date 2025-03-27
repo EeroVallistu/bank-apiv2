@@ -37,17 +37,39 @@ class DatabaseSync {
         console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
         const oldPrefix = prefixSetting.value;
         
-        // Use direct SQL with no timestamp fields
-        await sequelize.query(
-          `UPDATE settings SET value = '${envBankPrefix}' WHERE id = ${prefixSetting.id}`,
-          { type: sequelize.QueryTypes.RAW }
-        );
+        // Use multi-statement transaction to preserve timestamps
+        const transaction = await sequelize.transaction();
         
-        // The trigger in the database will handle updating all account numbers
-        console.log(`All accounts with prefix ${oldPrefix} have been updated to ${envBankPrefix}`);
-        console.log(`This change was applied automatically by the database trigger 'after_update_bank_prefix'`);
-        
-        return true;
+        try {
+          // Update using SQL that preserves created_at and sets updated_at properly
+          await sequelize.query(
+            `UPDATE settings 
+             SET value = :value, 
+                 updated_at = NOW() 
+             WHERE id = :id`,
+            {
+              replacements: { 
+                value: envBankPrefix,
+                id: prefixSetting.id
+              },
+              type: sequelize.QueryTypes.UPDATE,
+              transaction
+            }
+          );
+          
+          // Commit the transaction
+          await transaction.commit();
+          
+          // The trigger in the database will handle updating all account numbers
+          console.log(`All accounts with prefix ${oldPrefix} have been updated to ${envBankPrefix}`);
+          console.log(`This change was applied automatically by the database trigger 'after_update_bank_prefix'`);
+          
+          return true;
+        } catch (error) {
+          // Rollback on error
+          await transaction.rollback();
+          throw error;
+        }
       }
       
       return false;
