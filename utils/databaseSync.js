@@ -37,10 +37,9 @@ class DatabaseSync {
         console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
         const oldPrefix = prefixSetting.value;
         
-        // Use Sequelize update but explicitly include created_at to preserve its value
+        // Use regular update without created_at field
         await prefixSetting.update({
-          value: envBankPrefix,
-          created_at: prefixSetting.created_at // Preserve the existing created_at value
+          value: envBankPrefix
         });
         
         console.log(`All accounts with prefix ${oldPrefix} have been updated to ${envBankPrefix}`);
