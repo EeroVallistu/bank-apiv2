@@ -521,7 +521,7 @@ router.post(
  */
 router.get('/:id', async (req, res) => {
   try {
-    const transaction = findTransactionById(parseInt(req.params.id));
+    const transaction = await findTransactionById(parseInt(req.params.id));
     
     if (!transaction) {
       return res.status(404).json({
@@ -531,20 +531,35 @@ router.get('/:id', async (req, res) => {
     }
     
     // Get user accounts
-    const userAccounts = findAccountsByUserId(req.user.id);
-    const accountNumbers = userAccounts.map(acc => acc.accountNumber);
+    const userAccounts = await findAccountsByUserId(req.user.id);
+    const accountNumbers = userAccounts.map(acc => acc.account_number);
     
     // Check if user is involved in this transaction
-    if (!accountNumbers.includes(transaction.fromAccount) && !accountNumbers.includes(transaction.toAccount)) {
+    if (!accountNumbers.includes(transaction.from_account) && !accountNumbers.includes(transaction.to_account)) {
       return res.status(403).json({
         status: 'error',
         message: 'You don\'t have access to this transaction'
       });
     }
     
+    // Format transaction response
+    const formattedTransaction = {
+      id: transaction.id,
+      fromAccount: transaction.from_account,
+      toAccount: transaction.to_account,
+      amount: parseFloat(transaction.amount),
+      currency: transaction.currency,
+      explanation: transaction.explanation,
+      senderName: transaction.sender_name,
+      receiverName: transaction.receiver_name,
+      status: transaction.status,
+      isExternal: transaction.is_external,
+      createdAt: transaction.created_at
+    };
+    
     res.status(200).json({
       status: 'success',
-      data: transaction
+      data: formattedTransaction
     });
   } catch (error) {
     console.error('Error fetching transaction:', error);
