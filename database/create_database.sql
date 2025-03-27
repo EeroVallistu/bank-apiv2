@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS accounts (
 ) ENGINE=InnoDB;
 
 -- Create transactions table
+-- IMPORTANT: No foreign key constraint on from_account or to_account to allow external transfers
 CREATE TABLE IF NOT EXISTS transactions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     from_account VARCHAR(50) NOT NULL,
@@ -62,7 +63,6 @@ CREATE TABLE IF NOT EXISTS transactions (
     reference_id VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (to_account) REFERENCES accounts(account_number) ON UPDATE CASCADE,
     INDEX idx_from_account (from_account),
     INDEX idx_to_account (to_account),
     INDEX idx_status (status),

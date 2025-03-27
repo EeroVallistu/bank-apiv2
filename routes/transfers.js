@@ -29,20 +29,11 @@ router.get('/', authenticate, async (req, res) => {
     
     // Format transaction data for response
     const formattedTransactions = transactions.map(tx => {
-      // For external transactions, we stored the accounts in reverse order
-      let fromAccount = tx.from_account;
-      let toAccount = tx.to_account;
-      
-      // If it's an external transaction, we need to swap the accounts back
-      if (tx.is_external) {
-        fromAccount = tx.to_account;
-        toAccount = tx.from_account;
-      }
-      
+      // No need to swap account fields for external transactions anymore
       return {
         id: tx.id,
-        fromAccount: fromAccount,
-        toAccount: toAccount,
+        fromAccount: tx.from_account,
+        toAccount: tx.to_account,
         amount: parseFloat(tx.amount),
         currency: tx.currency,
         explanation: tx.explanation,
@@ -110,29 +101,21 @@ router.get('/:id', authenticate, async (req, res) => {
     
     const accountNumbers = accounts.map(acc => acc.account_number);
     
-    // For external transactions, we stored the accounts in reverse order
-    let fromAccount = transaction.from_account;
-    let toAccount = transaction.to_account;
+    // No need to swap account fields for external transactions anymore
     
-    // If it's an external transaction, we need to swap the accounts back
-    if (transaction.is_external) {
-      fromAccount = transaction.to_account;
-      toAccount = transaction.from_account;
-    }
-    
-    // Check if user is involved in this transaction (using the corrected account fields)
-    if (!accountNumbers.includes(fromAccount) && !accountNumbers.includes(toAccount)) {
+    // Check if user is involved in this transaction
+    if (!accountNumbers.includes(transaction.from_account) && !accountNumbers.includes(transaction.to_account)) {
       return res.status(403).json({
         status: 'error',
         message: 'You don\'t have access to this transaction'
       });
     }
     
-    // Format the response (with the corrected account fields)
+    // Format the response - no swapping needed
     const formattedTransaction = {
       id: transaction.id,
-      fromAccount: fromAccount,
-      toAccount: toAccount,
+      fromAccount: transaction.from_account,
+      toAccount: transaction.to_account,
       amount: parseFloat(transaction.amount),
       currency: transaction.currency,
       explanation: transaction.explanation,
