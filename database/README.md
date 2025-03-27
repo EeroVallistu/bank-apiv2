@@ -153,6 +153,22 @@ Stores system settings.
    - An account can be involved in multiple transactions
    - A transaction involves exactly two accounts (sender and receiver)
 
+## External Transactions Handling
+
+The database is designed to support both internal and external transactions:
+
+1. For **internal transfers** (between accounts in the same bank):
+   - Both `from_account` and `to_account` reference existing accounts in the system
+   - The `is_external` flag is set to `false`
+
+2. For **external transfers** (from other banks):
+   - The `from_account` field contains an account number from an external bank
+   - Only the `to_account` field references an existing local account
+   - The `is_external` flag is set to `true`
+   - There is no foreign key constraint on the `from_account` field to allow external account numbers
+
+This design enables the system to properly record transactions that originate from other banks while maintaining data integrity for local accounts.
+
 ## Stored Procedures
 
 The database includes the following stored procedures for common operations:

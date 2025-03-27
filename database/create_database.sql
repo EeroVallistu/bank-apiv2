@@ -62,7 +62,6 @@ CREATE TABLE IF NOT EXISTS transactions (
     reference_id VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (from_account) REFERENCES accounts(account_number) ON UPDATE CASCADE,
     FOREIGN KEY (to_account) REFERENCES accounts(account_number) ON UPDATE CASCADE,
     INDEX idx_from_account (from_account),
     INDEX idx_to_account (to_account),
