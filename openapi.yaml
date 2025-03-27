@@ -384,34 +384,7 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
-  /accounts/{accountNumber}:
-    get:
-      summary: Get account details
-      tags: [Accounts]
-      parameters:
-        - in: path
-          name: accountNumber
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Account details
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    $ref: '#/components/schemas/Account'
-        '404':
-          description: Account not found
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-    
+
     patch:
       summary: Update account details
       tags: [Accounts]
