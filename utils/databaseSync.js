@@ -1,4 +1,4 @@
-const { Setting } = require('../models');
+const { Setting, sequelize } = require('../models');
 
 /**
  * Database synchronization utilities
@@ -37,12 +37,12 @@ class DatabaseSync {
         console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
         const oldPrefix = prefixSetting.value;
         
-        // Only update the 'value' field to avoid timestamp issues
-        await Setting.update(
-          { value: envBankPrefix },
-          { 
-            where: { id: prefixSetting.id },
-            fields: ['value'] // Only update the value field
+        // Use raw SQL query to avoid timestamp issues
+        await sequelize.query(
+          'UPDATE settings SET value = ? WHERE id = ?',
+          {
+            replacements: [envBankPrefix, prefixSetting.id],
+            type: sequelize.QueryTypes.UPDATE
           }
         );
         
