@@ -43,7 +43,7 @@ class DatabaseSync {
           created_at: prefixSetting.created_at // Preserve the existing created_at value
         });
         
-        console.log(`All accounts with prefix ${oldPrefix have been updated to ${envBankPrefix}`);
+        console.log(`All accounts with prefix ${oldPrefix} have been updated to ${envBankPrefix}`);
         console.log(`This change was applied automatically by the database trigger 'after_update_bank_prefix'`);
         
         return true;
