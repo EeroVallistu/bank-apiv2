@@ -387,10 +387,13 @@ router.post(
       const dbTransaction = await sequelize.transaction();
       
       try {
-        // Create a transaction record in database
+        // IMPORTANT CHANGE: For external transactions, we swap from_account and to_account
+        // in our database due to foreign key constraints. The to_account must be in our database.
+        // We use is_external flag to determine if we need to swap them when displaying.
         const transaction = await Transaction.create({
-          from_account: fromAccount,
-          to_account: toAccount,
+          // Swap the accounts to satisfy the foreign key constraint!
+          from_account: toAccount, // External account goes in from_account (no constraint)
+          to_account: fromAccount, // Our account goes in to_account (satisfies constraint) 
           amount: parseFloat(amount),
           original_amount: parseFloat(amount),
           original_currency: sourceAccount.currency,
@@ -490,18 +493,19 @@ router.post(
           // Commit the database transaction
           await dbTransaction.commit();
 
-          // Format response data
+          // Format response data - IMPORTANT: swap back the accounts for the response
           const transactionData = {
             id: transaction.id,
-            fromAccount: transaction.from_account,
-            toAccount: transaction.to_account,
+            fromAccount: fromAccount, // Switch back for display
+            toAccount: toAccount,     // Switch back for display
             amount: parseFloat(transaction.amount),
             currency: transaction.currency,
             explanation: transaction.explanation,
             senderName: transaction.sender_name,
             receiverName: transaction.receiver_name,
             status: 'completed',
-            createdAt: transaction.created_at
+            createdAt: transaction.created_at,
+            isExternal: true
           };
 
           res.status(201).json({
@@ -579,19 +583,29 @@ router.get('/:id', async (req, res) => {
     const userAccounts = await findAccountsByUserId(req.user.id);
     const accountNumbers = userAccounts.map(acc => acc.account_number);
     
-    // Check if user is involved in this transaction
-    if (!accountNumbers.includes(transaction.from_account) && !accountNumbers.includes(transaction.to_account)) {
+    // For external transactions, we stored the accounts in reverse order
+    let fromAccount = transaction.from_account;
+    let toAccount = transaction.to_account;
+    
+    // If it's an external transaction, we need to swap the accounts back for display
+    if (transaction.is_external) {
+      fromAccount = transaction.to_account;
+      toAccount = transaction.from_account;
+    }
+    
+    // Check if user is involved in this transaction (using the correct account fields)
+    if (!accountNumbers.includes(fromAccount) && !accountNumbers.includes(toAccount)) {
       return res.status(403).json({
         status: 'error',
         message: 'You don\'t have access to this transaction'
       });
     }
     
-    // Format transaction response
+    // Format transaction response - with the correct account direction
     const formattedTransaction = {
       id: transaction.id,
-      fromAccount: transaction.from_account,
-      toAccount: transaction.to_account,
+      fromAccount: fromAccount,
+      toAccount: toAccount,
       amount: parseFloat(transaction.amount),
       currency: transaction.currency,
       explanation: transaction.explanation,

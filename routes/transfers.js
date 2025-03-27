@@ -28,19 +28,31 @@ router.get('/', authenticate, async (req, res) => {
     });
     
     // Format transaction data for response
-    const formattedTransactions = transactions.map(tx => ({
-      id: tx.id,
-      fromAccount: tx.from_account,
-      toAccount: tx.to_account,
-      amount: parseFloat(tx.amount),
-      currency: tx.currency,
-      explanation: tx.explanation,
-      status: tx.status,
-      createdAt: tx.created_at,
-      senderName: tx.sender_name,
-      receiverName: tx.receiver_name,
-      isExternal: tx.is_external
-    }));
+    const formattedTransactions = transactions.map(tx => {
+      // For external transactions, we stored the accounts in reverse order
+      let fromAccount = tx.from_account;
+      let toAccount = tx.to_account;
+      
+      // If it's an external transaction, we need to swap the accounts back
+      if (tx.is_external) {
+        fromAccount = tx.to_account;
+        toAccount = tx.from_account;
+      }
+      
+      return {
+        id: tx.id,
+        fromAccount: fromAccount,
+        toAccount: toAccount,
+        amount: parseFloat(tx.amount),
+        currency: tx.currency,
+        explanation: tx.explanation,
+        status: tx.status,
+        createdAt: tx.created_at,
+        senderName: tx.sender_name,
+        receiverName: tx.receiver_name,
+        isExternal: tx.is_external
+      };
+    });
     
     res.status(200).json({
       status: 'success',
@@ -98,19 +110,29 @@ router.get('/:id', authenticate, async (req, res) => {
     
     const accountNumbers = accounts.map(acc => acc.account_number);
     
-    // Check if user is involved in this transaction
-    if (!accountNumbers.includes(transaction.from_account) && !accountNumbers.includes(transaction.to_account)) {
+    // For external transactions, we stored the accounts in reverse order
+    let fromAccount = transaction.from_account;
+    let toAccount = transaction.to_account;
+    
+    // If it's an external transaction, we need to swap the accounts back
+    if (transaction.is_external) {
+      fromAccount = transaction.to_account;
+      toAccount = transaction.from_account;
+    }
+    
+    // Check if user is involved in this transaction (using the corrected account fields)
+    if (!accountNumbers.includes(fromAccount) && !accountNumbers.includes(toAccount)) {
       return res.status(403).json({
         status: 'error',
         message: 'You don\'t have access to this transaction'
       });
     }
     
-    // Format the response
+    // Format the response (with the corrected account fields)
     const formattedTransaction = {
       id: transaction.id,
-      fromAccount: transaction.from_account,
-      toAccount: transaction.to_account,
+      fromAccount: fromAccount,
+      toAccount: toAccount,
       amount: parseFloat(transaction.amount),
       currency: transaction.currency,
       explanation: transaction.explanation,
