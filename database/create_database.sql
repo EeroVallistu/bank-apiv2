@@ -120,7 +120,7 @@ INSERT INTO roles (name, description, permissions) VALUES
 -- Populate settings table with default settings
 INSERT INTO settings (name, value, description) VALUES
 ('bank_name', 'Eero Bank', 'Name of the bank'),
-('bank_prefix', 'cc6', 'Bank prefix for account numbers'),
+('bank_prefix', '000', 'Bank prefix for account numbers'),
 ('transaction_fee', '0.50', 'Fee for each transaction in the default currency'),
 ('maintenance_mode', 'false', 'Whether the system is in maintenance mode');
 
@@ -162,4 +162,4 @@ BEGIN
         );
     END IF;
 END //
-DELIMITER ; 
+DELIMITER ;

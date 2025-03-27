@@ -17,7 +17,7 @@ BEGIN
     
     -- Set default if no prefix found
     IF bank_prefix IS NULL THEN
-        SET bank_prefix = 'cc6';
+        SET bank_prefix = '000';
         
         -- Insert default prefix if missing
         INSERT IGNORE INTO settings (name, value, description) 
@@ -330,4 +330,4 @@ BEGIN
     
     RETURN IFNULL(total_balance, 0);
 END //
-DELIMITER ; 
+DELIMITER ;

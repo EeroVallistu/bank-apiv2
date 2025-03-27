@@ -187,4 +187,72 @@ To set up the database:
 1. Install MariaDB server
 2. Make the setup script executable: `chmod +x setup.sh`
 3. Run the setup script: `./setup.sh`
-4. Follow the prompts to create the database structure, stored procedures, and sample data 
+4. Follow the prompts to create the database structure, stored procedures, and sample data
+
+## Manual Database Setup
+
+If you prefer to set up the database without using the setup script, follow these steps:
+
+1. **Create the database structure**:
+   ```bash
+   mysql -u root -p < create_database.sql
+   ```
+
+2. **Create stored procedures**:
+   ```bash
+   mysql -u root -p < procedures.sql
+   ```
+
+3. **Create database users**:
+   ```bash
+   mysql -u root -p < users.sql
+   ```
+
+4. **Set Bank Prefix** (Optional):
+   After creating the database, you can update the bank prefix to match your .env file:
+   ```sql
+   USE bank_api;
+   UPDATE settings SET value = 'YOUR_PREFIX' WHERE name = 'bank_prefix';
+   ```
+
+5. **Add sample data** (Optional):
+   ```bash
+   mysql -u root -p < sample_data.sql
+   ```
+
+After setup, your application will automatically use the bank prefix from the settings table. If you need to change the prefix later, update the entry in the settings table, and all new account numbers will use the new prefix.
+
+## Bank Prefix Management
+
+The database is designed to handle bank prefix changes automatically:
+
+1. When the bank prefix is updated in the `settings` table, a trigger (`after_update_bank_prefix`) automatically:
+   - Updates all existing account numbers in the system
+   - Replaces the old prefix with the new one
+   - Logs the change to the `logs` table
+
+This ensures that when you change your bank prefix in the `.env` file, all account numbers are updated automatically to reflect this change.
+
+### Runtime Changes
+
+The application includes a file monitoring system that:
+
+1. Periodically checks for changes to the `.env` file (once per minute)
+2. When a change to `BANK_PREFIX` is detected:
+   - Reloads the environment variables
+   - Updates the database setting
+   - The database trigger automatically updates all existing account numbers
+   
+This means you can modify the bank prefix in your `.env` file while the application is running,
+and all account numbers will be updated automatically without requiring a restart.
+
+### How It Works
+
+If you update the `BANK_PREFIX` in your `.env` file:
+
+1. Within 1 minute, the application detects the changed file
+2. It reloads the environment variables and updates the setting in the database
+3. The database trigger fires and updates all account numbers
+4. A log entry is created documenting the change
+
+This allows for seamless bank prefix changes without manual database updates or application restarts.

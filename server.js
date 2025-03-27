@@ -6,7 +6,10 @@ const YAML = require('yamljs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const { sequelize, testConnection } = require('./models/database');
+const DatabaseSync = require('./utils/databaseSync');
 const scheduler = require('./utils/scheduler');
+const fs = require('fs');
 
 // Import middleware
 const cache = require('./middleware/cache');
@@ -30,13 +33,39 @@ const currencyRoutes = require('./routes/currency');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Track .env file last modified time
+let envLastModified = 0;
+const envPath = path.join(__dirname, '.env');
+
+// Function to check if .env file has been modified
+async function checkEnvFileChanges() {
+  try {
+    if (!fs.existsSync(envPath)) return false;
+    
+    const stats = fs.statSync(envPath);
+    const mtime = stats.mtimeMs;
+    
+    if (mtime > envLastModified) {
+      console.log('.env file has been modified, reloading environment variables');
+      require('dotenv').config({ override: true });
+      envLastModified = mtime;
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error checking .env file changes:', error);
+    return false;
+  }
+}
+
 // Initialize data store with sample data if in development
 if (process.env.NODE_ENV === 'development') {
 }
 
 // Function to sync settings from .env to database
 async function syncSettingsFromEnv() {
-  if (process.env.USE_DATABASE !== 'true') return;
+  if (process.env.USE_DATABASE !== 'true') return false;
   
   try {
     const { Setting } = require('./models');
@@ -80,6 +109,27 @@ async function syncSettingsFromEnv() {
     console.error('Failed to sync settings from .env to database:', error);
     return false;
   }
+}
+
+// Function to periodically check for environment changes
+function setupEnvWatcher() {
+  // Initial file mtime capture
+  if (fs.existsSync(envPath)) {
+    envLastModified = fs.statSync(envPath).mtimeMs;
+  }
+  
+  // Check every minute for changes to .env
+  const checkInterval = 60 * 1000; // 1 minute
+  setInterval(async () => {
+    const changed = await checkEnvFileChanges();
+    if (changed) {
+      console.log('Environment variables updated, syncing with database');
+      const settingsUpdated = await syncSettingsFromEnv();
+      if (settingsUpdated) {
+        console.log('Database settings updated from environment changes');
+      }
+    }
+  }, checkInterval);
 }
 
 // Serve static files from public directory
@@ -171,46 +221,59 @@ app.use((req, res) => {
 // Error handler middleware (should be last)
 app.use(errorHandler);
 
-// Start the server
-app.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`API Documentation available at http://localhost:${PORT}/docs`);
-  
-  // Test database connection if enabled
-  if (process.env.USE_DATABASE === 'true') {
-    try {
-      console.log('Testing database connection...');
-      const connected = await testConnection();
-      
-      if (connected) {
-        console.log('Syncing database models...');
-        // Sync all models with the database
-        // In production, you might want to use migration tools instead
-        await sequelize.sync({ alter: process.env.NODE_ENV === 'development' });
-        console.log('Database sync complete');
-        
-        // Sync settings from .env to database
-        await syncSettingsFromEnv();
-        
-        // Set up periodic check for env changes (every 5 minutes)
-        setInterval(async () => {
-          // Reload .env file to get latest values
-          require('dotenv').config();
-          await syncSettingsFromEnv();
-        }, 5 * 60 * 1000);
-      } else {
-        console.error('Failed to connect to database. Falling back to in-memory store.');
-      }
-    } catch (error) {
-      console.error('Database initialization error:', error);
+// Database connection and sync
+async function initializeApp() {
+  try {
+    console.log('Checking database connection...');
+    const connected = await testConnection();
+    
+    if (!connected) {
+      console.error('Database connection failed');
       console.log('Using in-memory data store as fallback.');
+      startServer();
+      return;
     }
-  } else {
-    console.log('Using in-memory data store (database connection disabled).');
+    
+    console.log('Database connection successful.');
+    
+    // Synchronize bank prefix between .env and database
+    const prefixUpdated = await DatabaseSync.syncBankPrefix();
+    if (prefixUpdated) {
+      console.log('Bank prefix updated - all account numbers have been automatically updated');
+    }
+    
+    // Setup .env file watcher to detect changes while app is running
+    setupEnvWatcher();
+    
+    // Sync all models with the database
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Syncing database models...');
+      await sequelize.sync({ alter: true });
+      console.log('Database sync complete');
+    }
+    
+    // Start scheduler for background tasks
+    if (process.env.USE_SCHEDULER !== 'false') {
+      scheduler.start();
+    }
+    
+    startServer();
+  } catch (error) {
+    console.error('Application initialization error:', error);
+    console.log('Using in-memory data store as fallback.');
+    startServer();
   }
-  
-  // Start scheduler for background tasks
-  scheduler.start();
-});
+}
+
+// Function to start the server
+function startServer() {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`API Documentation available at http://localhost:${PORT}/docs`);
+  });
+}
+
+// Start the application
+initializeApp();
 
 module.exports = app;
