@@ -14,3 +14,12 @@ PORT=9000
 CENTRAL_BANK_URL=https://henno.cfd/central-bank
 NODE_ENV=development
 DISABLE_SEQUELIZE_LOGGING=true
+
+# -- DATABASE CONNECTION SETTINGS --
+USE_DATABASE=true
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=bank_api
+DB_USER=root
+DB_PASSWORD=password
+DB_DIALECT=mysql
