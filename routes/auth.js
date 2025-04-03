@@ -324,14 +324,15 @@ sessionRouter.post(
         }
       });
 
-      // Return sanitized user object
-      const userData = user.toJSON();
-      delete userData.password;
-
+      // Format user data to match the OpenAPI spec
       res.json({
         status: 'success',
         token,
-        user: userData
+        user: {
+          id: user.id,
+          username: user.username,
+          fullName: user.full_name
+        }
       });
     } catch (error) {
       console.error('Login error:', error);
