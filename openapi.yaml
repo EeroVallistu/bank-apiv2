@@ -449,6 +449,8 @@ paths:
                     $ref: '#/components/schemas/Transaction'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '402':
           description: Insufficient funds
           content:
@@ -508,6 +510,8 @@ paths:
                     $ref: '#/components/schemas/Transaction'
         '400':
           $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '402':
           description: Insufficient funds
         '404':
