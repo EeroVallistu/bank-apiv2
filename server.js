@@ -7,10 +7,13 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
+const expressSanitizer = require('express-sanitizer');
+const { sanitizeResponseMiddleware } = require('./utils/sanitize');
 
 // Import middleware
 const cache = require('./middleware/cache');
 const errorHandler = require('./middleware/errorHandler');
+const xssProtection = require('./middleware/xssProtection');
 
 // Database connection
 const { sequelize, testConnection } = require('./models/database');
@@ -142,10 +145,38 @@ function setupEnvWatcher() {
 app.use(express.static('public'));
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  xssFilter: true,
+  noSniff: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  hsts: {
+    maxAge: 15552000, // 180 days
+    includeSubDomains: true,
+    preload: true
+  },
+  frameguard: {
+    action: 'deny'
+  }
+}));
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(expressSanitizer());
+app.use(xssProtection); // Apply XSS protection middleware
+app.use(sanitizeResponseMiddleware); // Sanitize all JSON responses
 
 // Rate limiting
 const limiter = rateLimit({

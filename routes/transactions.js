@@ -17,6 +17,7 @@ const keyManager = require('../utils/keyManager');
 const centralBankService = require('../services/centralBankService');
 const fetch = require('node-fetch');
 const currencyService = require('../services/currencyService');
+const { sanitizeObject, escapeHtml } = require('../utils/sanitize');
 
 const router = express.Router();
 
@@ -241,7 +242,7 @@ router.post(
           original_currency: sourceAccount.currency,
           currency: destinationAccount.currency,
           exchange_rate: exchangeRate,
-          explanation,
+          explanation: escapeHtml(explanation),
           sender_name: sourceUser.full_name,
           receiver_name: destinationUser.full_name,
           is_external: false,
@@ -396,7 +397,7 @@ router.post(
           original_currency: sourceAccount.currency,
           currency: sourceAccount.currency,
           exchange_rate: 1,
-          explanation,
+          explanation: escapeHtml(explanation),
           sender_name: sourceUser.full_name,
           is_external: true,
           status: 'pending',

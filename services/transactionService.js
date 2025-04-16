@@ -15,6 +15,7 @@ const {
   AuthenticationError, 
   APIError 
 } = require('../utils/errors');
+const { escapeHtml, sanitizeObject } = require('../utils/sanitize');
 
 /**
  * Service for handling transactions between banks
@@ -27,12 +28,15 @@ class TransactionService {
    */
   async processIncomingTransaction(payload) {
     try {
+      // Sanitize incoming payload to prevent XSS
+      const sanitizedPayload = sanitizeObject(payload);
+      
       // Validate destination account exists
-      const destinationAccount = await findAccountByNumber(payload.accountTo);
+      const destinationAccount = await findAccountByNumber(sanitizedPayload.accountTo);
       if (!destinationAccount) {
         throw new NotFoundError(
           'Account',
-          `Destination account ${payload.accountTo} not found`
+          `Destination account ${sanitizedPayload.accountTo} not found`
         );
       }
 
@@ -46,17 +50,17 @@ class TransactionService {
       }
 
       // Convert currency if needed
-      let amount = parseFloat(payload.amount);
+      let amount = parseFloat(sanitizedPayload.amount);
       let exchangeRate = 1;
       
-      if (payload.currency !== destinationAccount.currency) {
+      if (sanitizedPayload.currency !== destinationAccount.currency) {
         try {
           amount = await currencyService.convert(
-            payload.amount,
-            payload.currency,
+            sanitizedPayload.amount,
+            sanitizedPayload.currency,
             destinationAccount.currency
           );
-          exchangeRate = amount / parseFloat(payload.amount);
+          exchangeRate = amount / parseFloat(sanitizedPayload.amount);
         } catch (error) {
           throw new APIError(
             `Currency conversion failed: ${error.message}`,
@@ -78,15 +82,15 @@ class TransactionService {
 
       // Create transaction record with currency info
       const transaction = await Transaction.create({
-        from_account: payload.accountFrom,
-        to_account: payload.accountTo,
+        from_account: sanitizedPayload.accountFrom,
+        to_account: sanitizedPayload.accountTo,
         amount,
-        original_amount: parseFloat(payload.amount),
-        original_currency: payload.currency,
+        original_amount: parseFloat(sanitizedPayload.amount),
+        original_currency: sanitizedPayload.currency,
         currency: destinationAccount.currency,
         exchange_rate: exchangeRate,
-        explanation: payload.explanation,
-        sender_name: payload.senderName,
+        explanation: sanitizedPayload.explanation,
+        sender_name: sanitizedPayload.senderName,
         receiver_name: destinationUser.full_name,
         is_external: true,
         status: 'completed',

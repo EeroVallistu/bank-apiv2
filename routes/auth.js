@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const { authenticate } = require('../middleware/auth');
 const { 
   User,
@@ -10,6 +11,7 @@ const {
   Session
 } = require('../models');
 const { Op } = require('sequelize');
+const { sanitizeObject } = require('../utils/sanitize');
 
 const userRouter = express.Router();
 const sessionRouter = express.Router();
@@ -110,10 +112,14 @@ userRouter.post(
         });
       }
 
+      // Hash password before storing
+      const saltRounds = 10;
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+
       // Create new user with Sequelize
       await User.create({
         username,
-        password, // WARNING: Storing plain text password (not secure!)
+        password: hashedPassword, // Store hashed password instead of plaintext
         full_name: fullName,
         email,
         is_active: true
@@ -162,9 +168,12 @@ userRouter.get('/me', authenticate, async (req, res) => {
     const userData = user.toJSON();
     delete userData.password;
 
+    // Explicitly sanitize user data before returning
+    const sanitizedUserData = sanitizeObject(userData);
+
     res.status(200).json({
       status: 'success',
-      data: userData
+      data: sanitizedUserData
     });
   } catch (error) {
     console.error('Profile error:', error);
@@ -285,8 +294,9 @@ sessionRouter.post(
         });
       }
 
-      // Simple password check (not secure!)
-      if (user.password !== password) {
+      // Compare password with hashed password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
         return res.status(401).json({
           status: 'error',
           message: 'Invalid credentials',
