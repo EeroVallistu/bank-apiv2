@@ -104,7 +104,7 @@ userRouter.post(
       });
       
       if (existingUser) {
-        return res.status(400).json({ 
+        return res.status(409).json({ 
           status: 'error',
           message: 'Username or email already in use'
         });

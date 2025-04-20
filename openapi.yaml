@@ -198,6 +198,19 @@ paths:
                     example: User registered successfully
         '400':
           $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Conflict - Username or email already in use
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: error
+                  message:
+                    type: string
+                    example: Username or email already in use
 
   /users/me:
     get:
