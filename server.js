@@ -146,29 +146,26 @@ app.use(express.static('public'));
 
 // Security middleware
 app.use(helmet({
+  xssFilter: true,
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'"],
+      imgSrc: ["'self'"],
       connectSrc: ["'self'"],
-      frameSrc: ["'none'"],
+      fontSrc: ["'self'"],
       objectSrc: ["'none'"],
-      upgradeInsecureRequests: [],
-    },
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      frameAncestors: ["'none'"]
+    }
   },
-  xssFilter: true,
   noSniff: true,
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   hsts: {
-    maxAge: 15552000, // 180 days
+    maxAge: 15552000,
     includeSubDomains: true,
     preload: true
-  },
-  frameguard: {
-    action: 'deny'
   }
 }));
 app.use(cors());
