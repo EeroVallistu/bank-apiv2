@@ -3,6 +3,7 @@ const { query, validationResult } = require('express-validator');
 const router = express.Router();
 const currencyService = require('../services/currencyService');
 const cache = require('../middleware/cache');
+const { authenticate } = require('../middleware/auth');
 
 /**
  * @swagger
@@ -12,6 +13,7 @@ const cache = require('../middleware/cache');
  *     tags: [Currency]
  */
 router.get('/exchange-rates', [
+  authenticate,
   query('base')
     .isIn(['EUR', 'USD', 'GBP', 'SEK'])
     .withMessage('Base currency must be EUR, USD, GBP, or SEK'),
