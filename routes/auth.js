@@ -161,6 +161,10 @@ userRouter.get('/me', authenticate, async (req, res) => {
     // Remove password from response
     const userData = user.toJSON();
     delete userData.password;
+    
+    // Transform full_name to fullName for consistent API response
+    userData.fullName = userData.full_name;
+    delete userData.full_name;
 
     res.status(200).json({
       status: 'success',
