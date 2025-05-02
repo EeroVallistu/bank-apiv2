@@ -6,22 +6,29 @@ CREATE PROCEDURE create_account(
     IN p_user_id INT,
     IN p_currency VARCHAR(3),
     IN p_name VARCHAR(100),
-    IN p_initial_balance DECIMAL(15, 2)
+    IN p_initial_balance DECIMAL(15, 2),
+    IN p_bank_prefix VARCHAR(3) -- Add bank prefix as parameter
 )
 BEGIN
     DECLARE new_account_number VARCHAR(50);
     DECLARE bank_prefix VARCHAR(3);
     
-    -- Get current bank prefix from settings (ensure latest value)
-    SELECT value INTO bank_prefix FROM settings WHERE name = 'bank_prefix' ORDER BY updated_at DESC LIMIT 1;
+    -- Use the provided bank prefix from parameter instead of database
+    SET bank_prefix = p_bank_prefix;
     
-    -- Set default if no prefix found
-    IF bank_prefix IS NULL THEN
-        SET bank_prefix = '000';
+    -- Set default if no prefix provided
+    IF bank_prefix IS NULL OR bank_prefix = '' THEN
+        -- Fallback to database as a last resort
+        SELECT value INTO bank_prefix FROM settings WHERE name = 'bank_prefix' ORDER BY updated_at DESC LIMIT 1;
         
-        -- Insert default prefix if missing
-        INSERT IGNORE INTO settings (name, value, description) 
-        VALUES ('bank_prefix', bank_prefix, 'Bank prefix for account numbers');
+        -- Set default if still no prefix found
+        IF bank_prefix IS NULL THEN
+            SET bank_prefix = '000';
+            
+            -- Insert default prefix if missing
+            INSERT IGNORE INTO settings (name, value, description) 
+            VALUES ('bank_prefix', bank_prefix, 'Bank prefix for account numbers');
+        END IF;
     END IF;
     
     -- Generate account number
