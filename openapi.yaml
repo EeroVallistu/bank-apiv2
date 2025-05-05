@@ -326,18 +326,6 @@ paths:
     get:
       summary: Get all accounts for current user
       tags: [Accounts]
-      parameters:
-        - in: query
-          name: currency
-          schema:
-            type: string
-          description: Filter by currency (EUR, USD, GBP)
-        - in: query
-          name: sort
-          schema:
-            type: string
-            enum: [balance, -balance, name, -name, createdAt, -createdAt]
-          description: Sort accounts (prefix with - for descending)
       responses:
         '200':
           description: List of user accounts
