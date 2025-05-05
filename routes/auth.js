@@ -377,29 +377,6 @@ sessionRouter.delete('/', authenticate, async (req, res) => {
   }
 });
 
-
-sessionRouter.delete('/logout', authenticate, async (req, res) => {
-  try {
-    // Delete the current session from database
-    await Session.destroy({
-      where: {
-        token: req.token
-      }
-    });
-    
-    res.json({
-      status: 'success',
-      message: 'Successfully logged out'
-    });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error during logout',
-    });
-  }
-});
-
 // Export both routers
 module.exports = {
   userRoutes: userRouter,
