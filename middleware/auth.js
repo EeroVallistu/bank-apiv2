@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { findUserById, Session } = require('../models');
+const { Op } = require('sequelize');
 
 async function authenticate(req, res, next) {
   try {
@@ -31,12 +32,14 @@ async function authenticate(req, res, next) {
       });
     }
 
-    // Find the session in the database
+    // Find the session in the database with exact token match
     const session = await Session.findOne({
       where: {
-        token: token,
+        token: {
+          [Op.eq]: token  // Use exact equality operator
+        },
         expires_at: {
-          [require('sequelize').Op.gt]: new Date()
+          [Op.gt]: new Date() // Check that the session hasn't expired
         }
       }
     });
