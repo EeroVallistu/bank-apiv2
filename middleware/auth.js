@@ -8,7 +8,7 @@ async function authenticate(req, res, next) {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         status: 'error',
-        message: 'Authentication required. Please provide a valid token.'
+        message: 'Authentication required'
       });
     }
 

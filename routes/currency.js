@@ -13,7 +13,6 @@ const { authenticate } = require('../middleware/auth');
  *     tags: [Currency]
  */
 router.get('/exchange-rates', [
-  authenticate,
   query('base')
     .isIn(['EUR', 'USD', 'GBP', 'SEK'])
     .withMessage('Base currency must be EUR, USD, GBP, or SEK'),

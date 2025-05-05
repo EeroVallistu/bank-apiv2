@@ -659,6 +659,7 @@ paths:
     get:
       summary: Get current exchange rates
       tags: [Currency]
+      security: []
       parameters:
         - in: query
           name: base

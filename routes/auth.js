@@ -162,13 +162,20 @@ userRouter.get('/me', authenticate, async (req, res) => {
     const userData = user.toJSON();
     delete userData.password;
     
-    // Transform full_name to fullName for consistent API response
-    userData.fullName = userData.full_name;
-    delete userData.full_name;
+    // Transform snake_case to camelCase for consistent API response
+    const transformedData = {
+      id: userData.id,
+      username: userData.username,
+      email: userData.email,
+      fullName: userData.full_name,
+      isActive: userData.is_active,
+      createdAt: userData.created_at,
+      updatedAt: userData.updated_at
+    };
 
     res.status(200).json({
       status: 'success',
-      data: userData
+      data: transformedData
     });
   } catch (error) {
     console.error('Profile error:', error);
