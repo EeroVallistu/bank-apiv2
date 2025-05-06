@@ -122,7 +122,7 @@ router.get('/:id', authenticate, async (req, res) => {
       receiverName: transaction.receiver_name,
       status: transaction.status,
       isExternal: Boolean(transaction.is_external),
-      createdAt: transaction.createdAt // Use the correct Sequelize timestamp field
+      createdAt: transaction.created_at // Fixed: Use created_at instead of createdAt
     };
     
     res.status(200).json({
