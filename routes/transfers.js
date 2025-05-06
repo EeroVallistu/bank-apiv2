@@ -84,6 +84,7 @@ router.post('/', validateTransaction, authenticate, async (req, res) => {
 // Get transfer details
 router.get('/:id', authenticate, async (req, res) => {
   try {
+    // Use raw: false to get the Sequelize instance with proper mapping
     const transaction = await Transaction.findByPk(req.params.id);
     
     if (!transaction) {
@@ -101,8 +102,6 @@ router.get('/:id', authenticate, async (req, res) => {
     
     const accountNumbers = accounts.map(acc => acc.account_number);
     
-    // No need to swap account fields for external transactions anymore
-    
     // Check if user is involved in this transaction
     if (!accountNumbers.includes(transaction.from_account) && !accountNumbers.includes(transaction.to_account)) {
       return res.status(403).json({
@@ -111,7 +110,7 @@ router.get('/:id', authenticate, async (req, res) => {
       });
     }
     
-    // Format the response - no swapping needed
+    // Format the response using the Sequelize instance methods
     const formattedTransaction = {
       id: transaction.id,
       fromAccount: transaction.from_account,
@@ -122,8 +121,8 @@ router.get('/:id', authenticate, async (req, res) => {
       senderName: transaction.sender_name,
       receiverName: transaction.receiver_name,
       status: transaction.status,
-      isExternal: transaction.is_external,
-      createdAt: transaction.created_at
+      isExternal: Boolean(transaction.is_external),
+      createdAt: transaction.createdAt // Use the correct Sequelize timestamp field
     };
     
     res.status(200).json({
@@ -131,10 +130,11 @@ router.get('/:id', authenticate, async (req, res) => {
       data: formattedTransaction
     });
   } catch (error) {
-    console.error('Error fetching transaction:', error);
+    console.error('Error fetching transaction details:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Error fetching transaction'
+      message: 'Error fetching transaction details',
+      details: error.message
     });
   }
 });
