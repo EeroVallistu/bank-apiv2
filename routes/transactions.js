@@ -69,10 +69,10 @@ router.get('/', async (req, res) => {
       currency: tx.currency,
       explanation: tx.explanation,
       status: tx.status,
-      createdAt: tx.created_at, // Make sure we're using the correct field name here too
-      sender_name: tx.sender_name,
-      receiver_name: tx.receiver_name,
-      is_external: tx.is_external,
+      createdAt: tx.created_at,
+      senderName: tx.sender_name,
+      receiverName: tx.receiver_name,
+      isExternal: Boolean(tx.is_external),
       reference_id: tx.reference_id,
     }));
     
