@@ -41,7 +41,7 @@ router.get('/', authenticate, async (req, res) => {
         createdAt: tx.created_at,
         senderName: tx.sender_name,
         receiverName: tx.receiver_name,
-        isExternal: tx.is_external
+        isExternal: Boolean(tx.is_external)  // Convert to Boolean for consistency
       };
     });
     
