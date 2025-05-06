@@ -46,7 +46,7 @@ router.use(authenticate);
  *         name:
  *           type: string
  *           description: Account name/description
- *         createdAt:
+ *         created_at:
  *           type: string
  *           format: date-time
  *           description: Account creation date
@@ -85,7 +85,7 @@ router.get('/', async (req, res) => {
       balance: parseFloat(account.balance),
       currency: account.currency,
       name: account.name,
-      createdAt: account.createdAt
+      created_at: account.created_at
     }));
 
     res.status(200).json({
@@ -184,7 +184,7 @@ router.post(
           balance: parseFloat(newAccount.balance),
           currency: newAccount.currency,
           name: newAccount.name,
-          createdAt: newAccount.createdAt
+          created_at: newAccount.created_at
         }
       });
     } catch (error) {
@@ -251,7 +251,7 @@ router.get('/:accountNumber', async (req, res) => {
         balance: parseFloat(account.balance),
         currency: account.currency,
         name: account.name,
-        createdAt: account.createdAt
+        created_at: account.created_at
       }
     });
   } catch (error) {

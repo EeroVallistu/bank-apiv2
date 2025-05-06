@@ -39,7 +39,7 @@ components:
         name:
           type: string
           description: Account name/description
-        createdAt:
+        created_at:
           type: string
           format: date-time
           description: Account creation date
@@ -85,7 +85,7 @@ components:
         isExternal:
           type: boolean
           description: Whether this is an external transaction
-        createdAt:
+        created_at:
           type: string
           format: date-time
           description: Transaction creation date
