@@ -122,7 +122,7 @@ router.get('/:id', authenticate, async (req, res) => {
       receiverName: transaction.receiver_name,
       status: transaction.status,
       isExternal: Boolean(transaction.is_external),
-      createdAt: transaction.createdAt // Use the JavaScript property name (camelCase)
+      createdAt: transaction.created_at // Fixed: Use snake_case property as defined in the model
     };
     
     res.status(200).json({
