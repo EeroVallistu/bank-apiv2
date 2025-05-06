@@ -47,7 +47,7 @@ async function authenticate(req, res, next) {
     if (!session) {
       return res.status(401).json({
         status: 'error', 
-        message: 'Session expired or invalid'
+        message: 'Authentication required'
       });
     }
 
