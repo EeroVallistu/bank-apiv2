@@ -179,7 +179,8 @@ BEGIN
         action,
         entity_type,
         entity_id,
-        details
+        details,
+        created_at
     ) VALUES (
         p_user_id,
         'TRANSFER',
@@ -190,7 +191,8 @@ BEGIN
             'to', p_to_account,
             'amount', p_amount,
             'currency', from_currency
-        )
+        ),
+        NOW()
     );
     
     -- Commit transaction
@@ -293,7 +295,8 @@ BEGIN
         action,
         entity_type,
         entity_id,
-        details
+        details,
+        created_at
     ) VALUES (
         NULL, -- System action
         'EXTERNAL_TRANSFER',
@@ -306,7 +309,8 @@ BEGIN
             'originalAmount', p_original_amount,
             'currency', p_currency,
             'originalCurrency', p_original_currency
-        )
+        ),
+        NOW()
     );
     
     -- Commit transaction
