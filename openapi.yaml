@@ -98,13 +98,10 @@ components:
           schema:
             type: object
             properties:
-              status:
-                type: string
-                example: error
-              message:
+              error:
                 type: string
                 example: Authentication required
-    
+
     ValidationError:
       description: Input validation error
       content:
@@ -112,10 +109,10 @@ components:
           schema:
             type: object
             properties:
-              status:
+              error:
                 type: string
-                example: error
-              errors:
+                example: Validation failed
+              details:
                 type: array
                 items:
                   type: object
@@ -205,10 +202,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: error
-                  message:
+                  error:
                     type: string
                     example: Username or email already in use
 
@@ -284,29 +278,15 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: error
-                  message:
+                  error:
                     type: string
                     example: Invalid credentials
     delete:
       summary: Logout current user
       tags: [Sessions]
       responses:
-        '200':
+        '204':
           description: User logged out successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  message:
-                    type: string
-                    example: Successfully logged out
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
@@ -447,14 +427,19 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: error
-                  message:
+                  error:
                     type: string
                     example: Insufficient funds
         '404':
           description: Account not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Account not found
 
   /transfers/external:
     post:
@@ -503,8 +488,24 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '402':
           description: Insufficient funds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Insufficient funds
         '404':
           description: Account not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Account not found
 
   /transfers/{id}:
     get:
@@ -531,8 +532,24 @@ paths:
                     $ref: '#/components/schemas/Transaction'
         '404':
           description: Transaction not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Transaction not found
         '403':
           description: Access forbidden
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Access forbidden
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
@@ -572,10 +589,34 @@ paths:
                     example: 42
         '400':
           description: Invalid JWT or signature
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Invalid JWT or signature
         '404':
           description: Destination account not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Destination account not found
         '500':
           description: Processing error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Processing error
 
   /jwks.json:
     get:
@@ -609,6 +650,14 @@ paths:
                           type: string
         '500':
           description: Error retrieving JWKS
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Error retrieving JWKS
 
   /bank-info:
     get:

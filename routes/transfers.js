@@ -45,16 +45,10 @@ router.get('/', authenticate, async (req, res) => {
       };
     });
     
-    res.status(200).json({
-      status: 'success',
-      data: formattedTransactions
-    });
+    res.status(200).json({ data: formattedTransactions });
   } catch (error) {
     console.error('Error fetching transactions:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error fetching transactions'
-    });
+    res.status(500).json({ error: 'Error fetching transactions' });
   }
 });
 
@@ -74,10 +68,7 @@ router.post('/', validateTransaction, authenticate, async (req, res) => {
     }
   } catch (error) {
     console.error('Error processing transfer:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error processing transfer'
-    });
+    res.status(500).json({ error: 'Error processing transfer' });
   }
 });
 
@@ -88,10 +79,7 @@ router.get('/:id', authenticate, async (req, res) => {
     const transaction = await Transaction.findByPk(req.params.id);
     
     if (!transaction) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Transaction not found'
-      });
+      return res.status(404).json({ error: 'Transaction not found' });
     }
     
     // Get user accounts
@@ -104,10 +92,7 @@ router.get('/:id', authenticate, async (req, res) => {
     
     // Check if user is involved in this transaction
     if (!accountNumbers.includes(transaction.from_account) && !accountNumbers.includes(transaction.to_account)) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'You don\'t have access to this transaction'
-      });
+      return res.status(403).json({ error: "You don't have access to this transaction" });
     }
     
     // Format the response with all necessary fields that the test checks
@@ -125,17 +110,10 @@ router.get('/:id', authenticate, async (req, res) => {
       created_at: transaction.created_at // Changed from createdAt to created_at to match test expectations
     };
     
-    res.status(200).json({
-      status: 'success',
-      data: formattedTransaction
-    });
+    res.status(200).json({ data: formattedTransaction });
   } catch (error) {
     console.error('Error fetching transaction details:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error fetching transaction details',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Error fetching transaction details', details: error.message });
   }
 });
 

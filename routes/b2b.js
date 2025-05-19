@@ -68,7 +68,6 @@ const processB2BTransaction = async (req, res, next) => {
     
     // Use explicit status code for successful response
     res.status(200).json({
-      status: 'success',
       receiverName: result.receiverName,
       transactionId: result.transaction.id
     });

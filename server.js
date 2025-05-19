@@ -163,7 +163,6 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
-    status: 'success',
     message: 'API is operational',
     timestamp: new Date().toISOString()
   });
@@ -186,10 +185,7 @@ app.get('/jwks.json', (req, res) => {
     res.status(200).json(jwks);
   } catch (error) {
     console.error('Error serving JWKS:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to retrieve JWKS'
-    });
+    res.status(500).json({ error: 'Failed to retrieve JWKS' });
   }
 });
 
@@ -203,25 +199,18 @@ app.post('/admin/sync-settings', async (req, res) => {
     const changed = await syncSettingsFromEnv();
     
     res.status(200).json({
-      status: 'success',
       message: changed ? 'Settings updated from environment' : 'No changes needed',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Error syncing settings:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to sync settings'
-    });
+    res.status(500).json({ error: 'Failed to sync settings' });
   }
 });
 
 // 404 handler for undefined routes
 app.use((req, res) => {
-  res.status(404).json({
-    status: 'error',
-    message: 'Endpoint not found'
-  });
+  res.status(404).json({ error: 'Endpoint not found' });
 });
 
 // Error handler middleware (should be last)

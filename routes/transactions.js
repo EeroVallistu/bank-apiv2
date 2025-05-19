@@ -76,16 +76,10 @@ router.get('/', async (req, res) => {
       reference_id: tx.reference_id,
     }));
     
-    res.status(200).json({
-      status: 'success',
-      data: formattedTransactions
-    });
+    res.status(200).json({ data: formattedTransactions });
   } catch (error) {
     console.error('Error fetching transactions:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error fetching transactions'
-    });
+    res.status(500).json({ error: 'Error fetching transactions' });
   }
 });
 
@@ -176,10 +170,7 @@ router.post(
       // Validate input
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ 
-          status: 'error', 
-          errors: errors.array() 
-        });
+        return res.status(400).json({ error: 'Validation failed', details: errors.array() });
       }
 
       const { fromAccount, toAccount, amount, explanation } = req.body;
@@ -187,19 +178,13 @@ router.post(
       // Check if source account belongs to user
       const sourceAccount = await findAccountByNumber(fromAccount);
       if (!sourceAccount || sourceAccount.user_id !== req.user.id) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Source account not found or doesn\'t belong to you'
-        });
+        return res.status(404).json({ error: "Source account not found or doesn't belong to you" });
       }
 
       // Check if destination account exists in our bank
       const destinationAccount = await findAccountByNumber(toAccount);
       if (!destinationAccount) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Destination account not found'
-        });
+        return res.status(404).json({ error: 'Destination account not found' });
       }
 
       // Convert amount if currencies are different
@@ -217,10 +202,7 @@ router.post(
 
       // Check if source account has sufficient funds
       if (sourceAccount.balance < amount) {
-        return res.status(402).json({
-          status: 'error',
-          message: 'Insufficient funds'
-        });
+        return res.status(402).json({ error: 'Insufficient funds' });
       }
 
       // Find source account owner for the sender name
@@ -273,10 +255,7 @@ router.post(
           createdAt: transaction.created_at
         };
 
-        res.status(201).json({
-          status: 'success',
-          data: transactionData
-        });
+        res.status(201).json({ data: transactionData });
         
       } catch (dbError) {
         // Rollback the transaction on error
@@ -285,10 +264,7 @@ router.post(
       }
     } catch (error) {
       console.error('Error creating transaction:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Error creating transaction'
-      });
+      res.status(500).json({ error: 'Error creating transaction' });
     }
   }
 );
@@ -344,10 +320,7 @@ router.post(
       // Validate input
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ 
-          status: 'error', 
-          errors: errors.array() 
-        });
+        return res.status(400).json({ error: 'Validation failed', details: errors.array() });
       }
 
       const { fromAccount, toAccount, amount, explanation } = req.body;
@@ -355,18 +328,12 @@ router.post(
       // Check if source account belongs to user using database query
       const sourceAccount = await findAccountByNumber(fromAccount);
       if (!sourceAccount || sourceAccount.user_id !== req.user.id) {
-        return res.status(404).json({
-          status: 'error',
-          message: 'Source account not found or doesn\'t belong to you'
-        });
+        return res.status(404).json({ error: "Source account not found or doesn't belong to you" });
       }
 
       // Check if source account has sufficient funds
       if (sourceAccount.balance < amount) {
-        return res.status(402).json({
-          status: 'error',
-          message: 'Insufficient funds'
-        });
+        return res.status(402).json({ error: 'Insufficient funds' });
       }
 
       // Extract the bank prefix from toAccount (first 3 characters)
@@ -374,10 +341,7 @@ router.post(
       
       // Check if this is actually an external transaction
       if (bankPrefix === process.env.BANK_PREFIX) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'For internal transfers please use /internal endpoint'
-        });
+        return res.status(400).json({ error: 'For internal transfers please use /internal endpoint' });
       }
 
       // Find source account owner for the sender name
@@ -419,10 +383,7 @@ router.post(
             await dbTransaction.commit();
             
             console.error(`No bank found with prefix ${bankPrefix}`);
-            return res.status(404).json({
-              status: 'error',
-              message: 'Destination bank not found'
-            });
+            return res.status(404).json({ error: 'Destination bank not found' });
           }
           
           console.log(`Found bank: ${bankDetails.name} (${bankDetails.bankPrefix})`);
@@ -505,10 +466,7 @@ router.post(
             isExternal: true
           };
 
-          res.status(201).json({
-            status: 'success',
-            data: transactionData
-          });
+          res.status(201).json({ data: transactionData });
         } catch (error) {
           // Transaction failed
           console.error('External transfer error:', error);
@@ -523,10 +481,7 @@ router.post(
             await dbTransaction.commit();
           }
           
-          res.status(500).json({
-            status: 'error',
-            message: `External transfer failed: ${error.message}`
-          });
+          res.status(500).json({ error: `External transfer failed: ${error.message}` });
         }
       } catch (dbError) {
         // Rollback the transaction on database error
@@ -537,10 +492,7 @@ router.post(
       }
     } catch (error) {
       console.error('Error creating external transaction:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Error creating external transaction'
-      });
+      res.status(500).json({ error: 'Error creating external transaction' });
     }
   }
 );
@@ -570,10 +522,7 @@ router.get('/:id', async (req, res) => {
     const transaction = await findTransactionById(parseInt(req.params.id));
     
     if (!transaction) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Transaction not found'
-      });
+      return res.status(404).json({ error: 'Transaction not found' });
     }
     
     // Get user accounts
@@ -584,10 +533,7 @@ router.get('/:id', async (req, res) => {
     
     // Check if user is involved in this transaction
     if (!accountNumbers.includes(transaction.from_account) && !accountNumbers.includes(transaction.to_account)) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'You don\'t have access to this transaction'
-      });
+      return res.status(403).json({ error: "You don't have access to this transaction" });
     }
     
     // Format transaction response - no swapping needed
@@ -605,16 +551,10 @@ router.get('/:id', async (req, res) => {
       createdAt: transaction.created_at
     };
     
-    res.status(200).json({
-      status: 'success',
-      data: formattedTransaction
-    });
+    res.status(200).json({ data: formattedTransaction });
   } catch (error) {
     console.error('Error fetching transaction:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error fetching transaction'
-    });
+    res.status(500).json({ error: 'Error fetching transaction' });
   }
 });
 

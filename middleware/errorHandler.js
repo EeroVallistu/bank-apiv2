@@ -50,23 +50,16 @@ function errorHandler(err, req, res, next) {
     code = 'BAD_GATEWAY';
   }
   
-  // Create response object
-  const errorResponse = {
-    status: 'error',
-    message,
-    code
-  };
-  
-  // Add stack trace in development mode only
-  if (process.env.NODE_ENV === 'development') {
+  // New error response format
+  let errorResponse;
+  if (errors) {
+    errorResponse = { error: message, details: errors };
+  } else {
+    errorResponse = { error: message };
+  }
+  if (process.env.NODE_ENV === 'development' && err.stack) {
     errorResponse.stack = err.stack;
   }
-  
-  // Add validation errors if present
-  if (errors) {
-    errorResponse.errors = errors;
-  }
-  
   res.status(status).json(errorResponse);
 }
 

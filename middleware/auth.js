@@ -7,29 +7,20 @@ async function authenticate(req, res, next) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Authentication required'
-      });
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     const token = authHeader.split(' ')[1];
     
     if (!token) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Authentication token missing'
-      });
+      return res.status(401).json({ error: 'Authentication token missing' });
     }
 
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid or expired token'
-      });
+      return res.status(401).json({ error: 'Invalid or expired token' });
     }
 
     // Find the session in the database with exact token match
@@ -45,20 +36,14 @@ async function authenticate(req, res, next) {
     });
 
     if (!session) {
-      return res.status(401).json({
-        status: 'error', 
-        message: 'Authentication required'
-      });
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     // Find the user
     const user = await findUserById(decoded.userId);
     
     if (!user) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'User not found'
-      });
+      return res.status(401).json({ error: 'User not found' });
     }
 
     // Add user and token to request object
@@ -70,10 +55,7 @@ async function authenticate(req, res, next) {
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Authentication failed'
-    });
+    res.status(500).json({ error: 'Authentication failed' });
   }
 }
 

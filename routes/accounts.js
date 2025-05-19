@@ -88,16 +88,10 @@ router.get('/', async (req, res) => {
       created_at: account.created_at
     }));
 
-    res.status(200).json({
-      status: 'success',
-      data: formattedAccounts
-    });
+    res.status(200).json({ data: formattedAccounts });
   } catch (error) {
     console.error('Get accounts error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error fetching accounts'
-    });
+    res.status(500).json({ error: 'Server error fetching accounts' });
   }
 });
 
@@ -152,10 +146,7 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({
-          status: 'error',
-          errors: errors.array()
-        });
+        return res.status(400).json({ error: 'Validation failed', details: errors.array() });
       }
       
       const { name, currency } = req.body;
@@ -175,7 +166,6 @@ router.post(
       });
 
       res.status(201).json({
-        status: 'success',
         message: 'Account created successfully',
         data: {
           id: newAccount.id,
@@ -189,10 +179,7 @@ router.post(
       });
     } catch (error) {
       console.error('Create account error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Server error creating account'
-      });
+      res.status(500).json({ error: 'Server error creating account' });
     }
   }
 );
@@ -228,22 +215,15 @@ router.get('/:accountNumber', async (req, res) => {
     const account = await findAccountByNumber(accountNumber);
     
     if (!account) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Account not found'
-      });
+      return res.status(404).json({ error: 'Account not found' });
     }
     
     // Verify account belongs to user
     if (account.user_id !== userId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'You do not have permission to access this account'
-      });
+      return res.status(403).json({ error: 'You do not have permission to access this account' });
     }
 
     res.status(200).json({
-      status: 'success',
       data: {
         id: account.id,
         accountNumber: account.account_number,
@@ -256,10 +236,7 @@ router.get('/:accountNumber', async (req, res) => {
     });
   } catch (error) {
     console.error('Get account error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error fetching account'
-    });
+    res.status(500).json({ error: 'Server error fetching account' });
   }
 });
 

@@ -25,10 +25,7 @@ router.get('/exchange-rates', [
     // Validate input
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
-        status: 'error',
-        errors: errors.array()
-      });
+      return res.status(400).json({ error: 'Validation failed', details: errors.array() });
     }
 
     const { base, target } = req.query;
@@ -47,17 +44,13 @@ router.get('/exchange-rates', [
     }
 
     res.json({
-      status: 'success',
       base,
       timestamp: new Date().toISOString(),
       rates
     });
   } catch (error) {
     console.error('Error fetching exchange rates:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error fetching exchange rates'
-    });
+    res.status(500).json({ error: 'Error fetching exchange rates' });
   }
 });
 

@@ -87,8 +87,9 @@ userRouter.post(
   async (req, res) => {
     try {
       const errors = validationResult(req);
+
       if (!errors.isEmpty()) {
-        return res.status(400).json({ status: 'error', errors: errors.array() });
+        return res.status(400).json({ error: 'Validation failed', details: errors.array() });
       }
 
       const { username, password, fullName, email } = req.body;
@@ -103,11 +104,9 @@ userRouter.post(
         }
       });
       
+
       if (existingUser) {
-        return res.status(409).json({ 
-          status: 'error',
-          message: 'Username or email already in use'
-        });
+        return res.status(409).json({ error: 'Username or email already in use' });
       }
 
       // Create new user with Sequelize
@@ -119,16 +118,10 @@ userRouter.post(
         is_active: true
       });
 
-      res.status(201).json({
-        status: 'success',
-        message: 'User registered successfully',
-      });
+      res.status(201).json({ message: 'User registered successfully' });
     } catch (error) {
       console.error('Registration error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Server error during registration',
-      });
+      res.status(500).json({ error: 'Server error during registration' });
     }
   }
 );
@@ -152,10 +145,7 @@ userRouter.get('/me', authenticate, async (req, res) => {
     const user = await findUserById(req.user.id);
     
     if (!user) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'User not found',
-      });
+      return res.status(404).json({ error: 'User not found' });
     }
 
     // Remove password from response
@@ -170,16 +160,10 @@ userRouter.get('/me', authenticate, async (req, res) => {
       fullName: userData.full_name
     };
 
-    res.status(200).json({
-      status: 'success',
-      data: transformedData
-    });
+    res.status(200).json({ data: transformedData });
   } catch (error) {
     console.error('Profile error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error fetching profile',
-    });
+    res.status(500).json({ error: 'Server error fetching profile' });
   }
 });
 
@@ -277,28 +261,19 @@ sessionRouter.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ 
-          status: 'error', 
-          errors: errors.array() 
-        });
+        return res.status(400).json({ error: 'Validation failed', details: errors.array() });
       }
 
       const { username, password } = req.body;
 
       const user = await findUserByUsername(username);
       if (!user) {
-        return res.status(401).json({
-          status: 'error',
-          message: 'Invalid credentials',
-        });
+        return res.status(401).json({ error: 'Invalid credentials' });
       }
 
       // Simple password check (not secure!)
       if (user.password !== password) {
-        return res.status(401).json({
-          status: 'error',
-          message: 'Invalid credentials',
-        });
+        return res.status(401).json({ error: 'Invalid credentials' });
       }
 
       // Generate unique session ID
@@ -338,10 +313,7 @@ sessionRouter.post(
       });
     } catch (error) {
       console.error('Login error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Server error during login',
-      });
+      res.status(500).json({ error: 'Server error during login' });
     }
   }
 );
@@ -355,16 +327,10 @@ sessionRouter.delete('/', authenticate, async (req, res) => {
       }
     });
     
-    res.json({
-      status: 'success',
-      message: 'Successfully logged out'
-    });
+    res.status(204).send();
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error during logout',
-    });
+    res.status(500).json({ error: 'Server error during logout' });
   }
 });
 
