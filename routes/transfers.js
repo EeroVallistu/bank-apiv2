@@ -54,18 +54,10 @@ router.get('/', authenticate, async (req, res) => {
 
 // Create new transfer (internal or external)
 router.post('/', validateTransaction, authenticate, async (req, res) => {
-  const { type = 'internal', ...transferData } = req.body;
-  
   try {
-    if (type === 'external') {
-      // Forward to external transfer handler
-      const externalTransferHandler = require('./transactions');
-      return externalTransferHandler.handleExternalTransfer(req, res);
-    } else {
-      // Forward to internal transfer handler
-      const internalTransferHandler = require('./transactions');
-      return internalTransferHandler.handleInternalTransfer(req, res);
-    }
+    // Use the unified transfer handler that automatically detects internal vs external transfers
+    const transactionHandler = require('./transactions');
+    return transactionHandler.handleUnifiedTransfer(req, res);
   } catch (error) {
     console.error('Error processing transfer:', error);
     res.status(500).json({ error: 'Error processing transfer' });
