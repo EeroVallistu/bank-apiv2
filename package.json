@@ -22,8 +22,8 @@
     "yamljs": "^0.3.0"
   },
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node bankapi.js",
+    "dev": "nodemon --watch . --ext js,yaml bankapi.js"
   },
   "devDependencies": {
     "jest": "^29.5.0",
