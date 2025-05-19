@@ -1,7 +1,5 @@
 const centralBankService = require('../services/centralBankService');
-const dotenv = require('dotenv');
-const path = require('path');
-const fs = require('fs');
+const { Op } = require('sequelize');
 
 /**
  * Task scheduler for the bank API
