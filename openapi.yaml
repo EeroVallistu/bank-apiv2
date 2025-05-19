@@ -22,27 +22,29 @@ components:
         id:
           type: integer
           description: Account ID
+          example: 1
         accountNumber:
           type: string
           description: Unique account number with bank prefix
+          example: 71093v31i57k1
         userId:
           type: integer
           description: ID of the account owner
+          example: 1
         balance:
           type: number
           format: float
           description: Current account balance
+          example: 1000.00
         currency:
           type: string
           enum: [EUR, USD, GBP, SEK]
           description: Account currency
+          example: EUR
         name:
           type: string
           description: Account name/description
-        created_at:
-          type: string
-          format: date-time
-          description: Account creation date
+          example: Main Savings
       required:
         - accountNumber
         - userId

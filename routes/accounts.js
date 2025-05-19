@@ -84,8 +84,7 @@ router.get('/', async (req, res) => {
       userId: account.user_id,
       balance: parseFloat(account.balance),
       currency: account.currency,
-      name: account.name,
-      created_at: account.created_at
+      name: account.name
     }));
 
     res.status(200).json({ data: formattedAccounts });
