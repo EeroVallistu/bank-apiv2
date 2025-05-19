@@ -7,38 +7,35 @@ const models = require('../models');
  */
 async function updateBankPrefix() {
   try {
-    // Get current bank prefix from .env
-    const envBankPrefix = process.env.BANK_PREFIX;
-    
-    if (!envBankPrefix) {
-      console.log('BANK_PREFIX not found in .env file, skipping update');
+    // Get current bank prefix from central bank
+    const centralBankService = require('../services/centralBankService');
+    const cbBankPrefix = await centralBankService.getOurBankPrefix();
+    if (!cbBankPrefix) {
+      console.log('Bank prefix not found in central bank, skipping update');
       return;
     }
-    
-    console.log(`Found bank prefix in .env: ${envBankPrefix}`);
-    
+    console.log(`Found bank prefix in central bank: ${cbBankPrefix}`);
     // Get bank prefix from database settings
     const prefixSetting = await Setting.findOne({
       where: { name: 'bank_prefix' }
     });
-    
     if (!prefixSetting) {
       // If no prefix setting exists, create one
       console.log('No bank_prefix found in database, creating new setting');
       await Setting.create({
         name: 'bank_prefix',
-        value: envBankPrefix,
+        value: cbBankPrefix,
         description: 'Bank prefix for account numbers'
       });
-      console.log(`Bank prefix set to: ${envBankPrefix}`);
-    } else if (prefixSetting.value !== envBankPrefix) {
+      console.log(`Bank prefix set to: ${cbBankPrefix}`);
+    } else if (prefixSetting.value !== cbBankPrefix) {
       // Update existing prefix if it doesn't match
-      console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${envBankPrefix}`);
-      prefixSetting.value = envBankPrefix;
+      console.log(`Updating bank prefix in database from ${prefixSetting.value} to ${cbBankPrefix}`);
+      prefixSetting.value = cbBankPrefix;
       await prefixSetting.save();
       console.log('Bank prefix updated successfully');
     } else {
-      console.log('Bank prefix in database already matches .env file');
+      console.log('Bank prefix in database already matches central bank');
     }
   } catch (error) {
     console.error('Error updating bank prefix:', error);

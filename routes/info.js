@@ -28,9 +28,18 @@ const centralBankService = require('../services/centralBankService');
  *                   example: 353
  */
 router.get('/', authenticate, (req, res) => {
-  res.json({
-    name: process.env.BANK_NAME,
-    prefix: process.env.BANK_PREFIX
+  // Fetch our own bank details from the central bank
+  const centralBankService = require('../services/centralBankService');
+  centralBankService.getOurBankPrefix().then(prefix => {
+    res.json({
+      name: process.env.BANK_NAME,
+      prefix
+    });
+  }).catch(() => {
+    res.json({
+      name: process.env.BANK_NAME,
+      prefix: null
+    });
   });
 });
 

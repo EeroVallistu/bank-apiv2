@@ -7,6 +7,19 @@ const path = require('path');
  * Service for interacting with the Central Bank API
  */
 class CentralBankService {
+  /**
+   * Get our own bank's prefix from the central bank (by name or transaction URL)
+   * @returns {Promise<string|null>} The bank prefix or null if not found
+   */
+  async getOurBankPrefix(forceRefresh = false) {
+    const ourBankName = process.env.BANK_NAME || 'Bank API';
+    const ourTransactionUrl = process.env.TRANSACTION_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/transactions/b2b`;
+    const allBanks = await this.getAllBanks(forceRefresh);
+    const ourBank = allBanks.find(bank =>
+      bank.name === ourBankName || bank.transactionUrl === ourTransactionUrl
+    );
+    return ourBank ? ourBank.bankPrefix : null;
+  }
   constructor() {
     // Ensure URL doesn't have trailing slash
     this.apiUrl = (process.env.CENTRAL_BANK_URL || 'https://henno.cfd/central-bank').replace(/\/$/, '');

@@ -31,10 +31,10 @@ async function testCentralBank() {
       console.log('---');
     });
     
-    if (process.env.BANK_PREFIX) {
-      console.log(`${colors.yellow}Looking up our own bank (${process.env.BANK_PREFIX})...${colors.reset}`);
-      const ourBank = await centralBankService.getBankDetails(process.env.BANK_PREFIX, true);
-      
+    const ourPrefix = await centralBankService.getOurBankPrefix(true);
+    if (ourPrefix) {
+      console.log(`${colors.yellow}Looking up our own bank (${ourPrefix})...${colors.reset}`);
+      const ourBank = await centralBankService.getBankDetails(ourPrefix, true);
       if (ourBank) {
         console.log(`${colors.green}Found our bank:${colors.reset}`);
         console.log(`  Name: ${ourBank.name}`);

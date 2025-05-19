@@ -338,9 +338,8 @@ router.post(
 
       // Extract the bank prefix from toAccount (first 3 characters)
       const bankPrefix = toAccount.substring(0, 3);
-      
-      // Check if this is actually an external transaction
-      if (bankPrefix === process.env.BANK_PREFIX) {
+      const ourBankPrefix = await centralBankService.getOurBankPrefix();
+      if (bankPrefix === ourBankPrefix) {
         return res.status(400).json({ error: 'For internal transfers please use /internal endpoint' });
       }
 
@@ -658,7 +657,8 @@ router.post(
       const bankPrefix = toAccount.substring(0, 3);
       
       // Determine if this is an internal or external transfer
-      const isExternal = bankPrefix !== process.env.BANK_PREFIX;
+      const ourBankPrefix2 = await centralBankService.getOurBankPrefix();
+      const isExternal = bankPrefix !== ourBankPrefix2;
       
       // Clone the request object to avoid modifying the original
       const modifiedReq = { 
@@ -780,7 +780,8 @@ const processExternalTransfer = async (req, res) => {
     const bankPrefix = toAccount.substring(0, 3);
     
     // Check if this is actually an external transaction
-    if (bankPrefix === process.env.BANK_PREFIX) {
+    const ourBankPrefix3 = await centralBankService.getOurBankPrefix();
+    if (bankPrefix === ourBankPrefix3) {
       return res.status(400).json({ error: 'For internal transfers please use /internal endpoint' });
     }
 

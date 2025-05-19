@@ -45,15 +45,6 @@ async function registerBank() {
     console.log('Bank details:');
     console.log(JSON.stringify(result, null, 2));
 
-    // Save registration data to file
-    const fs = require('fs');
-    const path = require('path');
-    fs.writeFileSync(
-      path.join(__dirname, '../bankreg.txt'),
-      JSON.stringify(result, null, 2)
-    );
-    console.log('Registration data saved to bankreg.txt');
-
     // Update .env file with bank prefix and API key if needed
     if (result.bankPrefix || result.apiKey) {
       console.log(`Updating .env file with registration details`);
