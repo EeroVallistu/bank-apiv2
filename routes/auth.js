@@ -167,10 +167,7 @@ userRouter.get('/me', authenticate, async (req, res) => {
       id: userData.id,
       username: userData.username,
       email: userData.email,
-      fullName: userData.full_name,
-      isActive: userData.is_active,
-      createdAt: userData.created_at,
-      updatedAt: userData.updated_at
+      fullName: userData.full_name
     };
 
     res.status(200).json({
@@ -335,15 +332,9 @@ sessionRouter.post(
         }
       });
 
-      // Format user data to match the OpenAPI spec
+      // Only return the token with no status
       res.json({
-        status: 'success',
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          fullName: user.full_name
-        }
+        token
       });
     } catch (error) {
       console.error('Login error:', error);
