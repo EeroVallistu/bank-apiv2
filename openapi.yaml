@@ -119,28 +119,6 @@ security:
   - bearerAuth: []
 
 paths:
-  /health:
-    get:
-      summary: Get API health status
-      security: []
-      tags: [System]
-      responses:
-        '200':
-          description: API is operational
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  message:
-                    type: string
-                    example: API is operational
-                  timestamp:
-                    type: string
-                    format: date-time
 
   /users:
     post:

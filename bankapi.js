@@ -160,13 +160,6 @@ const swaggerDocument = YAML.load(path.join(__dirname, './openapi.yaml'));
 // Swagger API docs setup
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    message: 'API is operational',
-    timestamp: new Date().toISOString()
-  });
-});
 
 // Routes
 app.use('/users', userRoutes);
