@@ -351,6 +351,31 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Transaction'
+              example:
+                status: success
+                data:
+                  - id: 101
+                    fromAccount: "71093v31i57k1"
+                    toAccount: "353f9a23d1c7b45e8t91"
+                    amount: 250.75
+                    currency: EUR
+                    explanation: "Invoice payment for May 2025"
+                    senderName: "Alice Example"
+                    receiverName: "Bob Example"
+                    status: completed
+                    isExternal: false
+                    created_at: "2025-05-18T14:23:00Z"
+                  - id: 102
+                    fromAccount: "71093v31i57k1"
+                    toAccount: "9988aabbccddeeff0011"
+                    amount: 100.00
+                    currency: USD
+                    explanation: "Refund for order #1234"
+                    senderName: "Alice Example"
+                    receiverName: "Charlie Example"
+                    status: pending
+                    isExternal: true
+                    created_at: "2025-05-19T09:00:00Z"
         '401':
           $ref: '#/components/responses/UnauthorizedError'
           
