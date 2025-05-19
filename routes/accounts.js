@@ -145,7 +145,7 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+        return res.status(400).json({ error: 'Validation failed' });
       }
       
       const { name, currency } = req.body;
@@ -165,15 +165,13 @@ router.post(
       });
 
       res.status(201).json({
-        message: 'Account created successfully',
         data: {
-          id: newAccount.id,
-          accountNumber: newAccount.account_number,
-          userId: newAccount.user_id,
-          balance: parseFloat(newAccount.balance),
-          currency: newAccount.currency,
           name: newAccount.name,
-          created_at: newAccount.created_at
+          currency: newAccount.currency,
+          balance: parseFloat(newAccount.balance),
+          accountNumber: newAccount.account_number,
+          id: newAccount.id,
+          userId: newAccount.user_id
         }
       });
     } catch (error) {
