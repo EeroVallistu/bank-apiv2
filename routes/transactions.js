@@ -891,19 +891,12 @@ const processExternalTransfer = async (req, res) => {
         // Commit the database transaction
         await dbTransaction.commit();
 
-        // Format response data - No need to swap accounts anymore
+        // Format response data (minimal, matching OpenAPI example)
         const transactionData = {
-          id: transaction.id,
           fromAccount: transaction.from_account,
           toAccount: transaction.to_account,
           amount: parseFloat(transaction.amount),
-          currency: transaction.currency,
-          explanation: transaction.explanation,
-          senderName: transaction.sender_name,
-          receiverName: transaction.receiver_name,
-          status: 'completed',
-          createdAt: transaction.created_at,
-          isExternal: true
+          explanation: transaction.explanation
         };
 
         res.status(201).json({ data: transactionData });
