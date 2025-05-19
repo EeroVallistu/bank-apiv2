@@ -229,6 +229,12 @@ paths:
                       created_at:
                         type: string
                         format: date-time
+              example:
+                data:
+                  id: 1
+                  username: jsmith
+                  email: john.smith@example.com
+                  fullName: John Smith
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
