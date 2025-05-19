@@ -15,7 +15,7 @@ const {
 const { Op } = require('sequelize');
 const keyManager = require('../utils/keyManager');
 const centralBankService = require('../services/centralBankService');
-const fetch = require('node-fetch');
+const { fetch } = require('undici');
 const currencyService = require('../services/currencyService');
 
 const router = express.Router();

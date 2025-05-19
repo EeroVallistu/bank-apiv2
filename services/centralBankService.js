@@ -1,4 +1,4 @@
-const fetch = require('node-fetch');
+const { fetch } = require('undici');
 const cache = require('../utils/cache');
 const fs = require('fs');
 const path = require('path');
