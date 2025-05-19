@@ -10,7 +10,9 @@ const Setting = sequelize.define('Setting', {
   name: {
     type: DataTypes.STRING(100),
     allowNull: false,
-    unique: true
+    unique: {
+      name: 'uk_setting_name' // Use an explicit name for the unique index
+    }
   },
   value: {
     type: DataTypes.TEXT,

@@ -241,9 +241,11 @@ async function initializeApp() {
         process.exit(1);
       }
       
-      // Only sync models structure, do NOT force recreation of tables
+      // Sync models with database - only use alter in development mode
       console.log('Syncing database models...');
-      await sequelize.sync({ alter: false }); // Changed from alter: true to prevent modifying tables
+      const shouldAlter = process.env.NODE_ENV === 'development';
+      await sequelize.sync({ alter: shouldAlter }); 
+      console.log(`Database sync complete (alter: ${shouldAlter})`);
       
       // Update bank prefix in database to match .env file
       console.log('Checking bank prefix...');
@@ -252,13 +254,6 @@ async function initializeApp() {
     
     // Setup .env file watcher to detect changes while app is running
     setupEnvWatcher();
-    
-    // Sync all models with the database
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Syncing database models...');
-      await sequelize.sync({ alter: true });
-      console.log('Database sync complete');
-    }
     
     // Start scheduler for background tasks if available
     if (scheduler && typeof scheduler.start === 'function' && process.env.USE_SCHEDULER !== 'false') {
