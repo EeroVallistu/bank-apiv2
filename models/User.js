@@ -10,7 +10,9 @@ const User = sequelize.define('User', {
   username: {
     type: DataTypes.STRING(50),
     allowNull: false,
-    unique: true
+    unique: {
+      name: 'uk_username' // Use the existing index name
+    }
   },
   password: {
     type: DataTypes.STRING(255),
@@ -23,7 +25,9 @@ const User = sequelize.define('User', {
   email: {
     type: DataTypes.STRING(100),
     allowNull: false,
-    unique: true
+    unique: {
+      name: 'uk_email' // Use the existing index name
+    }
   },
   role_id: {
     type: DataTypes.INTEGER,

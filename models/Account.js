@@ -10,7 +10,9 @@ const Account = sequelize.define('Account', {
   account_number: {
     type: DataTypes.STRING(50),
     allowNull: false,
-    unique: true
+    unique: {
+      name: 'uk_account_number' // Use the existing index name
+    }
   },
   user_id: {
     type: DataTypes.INTEGER,
