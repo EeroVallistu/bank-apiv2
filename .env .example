@@ -5,6 +5,9 @@ BANK_OWNERS=Your Name or Organization                   # Bank's owner(s)
 TRANSACTION_URL=https://your-domain.com/transactions/b2b # Your bank's transaction endpoint
 JWKS_URL=https://your-domain.com/jwks.json              # Your bank's JWKS endpoint
 
+# -- SETTINGS PROVIDED BY CENTRAL BANK DURING REGISTRATION --
+API_KEY=your_central_bank_api_key                       # Received from central bank during registration
+
 # -- DEFAULT SETTINGS (can leave unchanged) --
 PORT=9000
 CENTRAL_BANK_URL=https://henno.cfd/central-bank
