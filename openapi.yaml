@@ -602,26 +602,6 @@ paths:
                     type: string
                     example: Error retrieving JWKS
 
-  /bank-info:
-    get:
-      summary: Get bank information
-      tags: [Info]
-      responses:
-        '200':
-          description: Bank information
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  name:
-                    type: string
-                    example: Eero Bank
-                  prefix:
-                    type: string
-                    example: 353
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
 
   /exchange-rates:
     get:
