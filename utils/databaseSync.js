@@ -37,7 +37,7 @@ class DatabaseSync {
         
         try {
           await sequelize.query(
-            `INSERT INTO settings (name, value, description) VALUES (?, ?, ?)`,
+            `INSERT INTO settings (name, value, description, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())`,
             {
               replacements: ['bank_prefix', envBankPrefix, 'Bank prefix for account numbers'],
               type: sequelize.QueryTypes.INSERT
@@ -57,7 +57,7 @@ class DatabaseSync {
         try {
           // Use direct SQL with explicit debugging
           const result = await sequelize.query(
-            `UPDATE settings SET value = ? WHERE name = ?`,
+            `UPDATE settings SET value = ?, updated_at = NOW() WHERE name = ?`,
             {
               replacements: [envBankPrefix, 'bank_prefix'],
               type: sequelize.QueryTypes.UPDATE

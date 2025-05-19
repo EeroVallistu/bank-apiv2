@@ -24,9 +24,9 @@ const Setting = sequelize.define('Setting', {
   }
 }, {
   tableName: 'settings',
-  timestamps: false,  // Completely disable Sequelize's timestamp handling
-  createdAt: false,   // Explicitly disable createdAt
-  updatedAt: false    // Explicitly disable updatedAt
+  timestamps: true,
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
 module.exports = Setting;

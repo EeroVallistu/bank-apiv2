@@ -148,7 +148,8 @@ BEGIN
             action,
             entity_type,
             entity_id,
-            details
+            details,
+            created_at
         ) VALUES (
             NULL, -- System action
             'BANK_PREFIX_CHANGED',
@@ -157,7 +158,8 @@ BEGIN
             JSON_OBJECT(
                 'old_prefix', old_prefix,
                 'new_prefix', new_prefix
-            )
+            ),
+            NOW()
         );
     END IF;
 END //
