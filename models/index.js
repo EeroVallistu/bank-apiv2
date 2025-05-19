@@ -22,7 +22,9 @@ User.hasMany(Log, { foreignKey: 'user_id' });
 Log.belongsTo(User, { foreignKey: 'user_id' });
 
 // Define custom methods that mimic the in-memory store
-const findUserById = async (id) => User.findByPk(id);
+const findUserById = async (id) => User.findByPk(id, {
+  include: [{ model: Role }]
+});
 const findUserByUsername = async (username) => User.findOne({ where: { username } });
 const findUserByEmail = async (email) => User.findOne({ where: { email } });
 const findAccountById = async (id) => Account.findByPk(id);

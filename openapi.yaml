@@ -103,6 +103,17 @@ components:
               error:
                 type: string
                 example: Authentication required
+    
+    PermissionDeniedError:
+      description: User does not have required permissions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Permission denied
 
     ValidationError:
       description: Input validation error
@@ -215,6 +226,8 @@ paths:
                   fullName: John Smith
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedError'
 
   /sessions:
     post:
@@ -288,6 +301,8 @@ paths:
                       $ref: '#/components/schemas/Account'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedError'
     
     post:
       summary: Create a new account
@@ -331,6 +346,8 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedError'
 
   /transfers:
     get:
@@ -378,6 +395,8 @@ paths:
                     created_at: "2025-05-19T09:00:00Z"
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedError'
           
     post:
       summary: Create a new transaction (internal or external)
@@ -428,6 +447,8 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '402':
           description: Insufficient funds
+        '403':
+          $ref: '#/components/responses/PermissionDeniedError'
         '404':
           description: Account not found
 
@@ -479,15 +500,7 @@ paths:
                     type: string
                     example: Transaction not found
         '403':
-          description: Access forbidden
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: Access forbidden
+          $ref: '#/components/responses/PermissionDeniedError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 

@@ -39,7 +39,7 @@ async function authenticate(req, res, next) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Find the user
+    // Find the user with role information
     const user = await findUserById(decoded.userId);
     
     if (!user) {
@@ -47,7 +47,7 @@ async function authenticate(req, res, next) {
     }
 
     // Add user and token to request object
-    req.user = { id: user.id };
+    req.user = user;
     req.token = token;
     req.sessionId = decoded.sessionId;
     

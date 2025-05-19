@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const { authenticate } = require('../middleware/auth');
+const { checkPermission } = require('../middleware/checkPermission');
 const { 
   Account,
   User,
@@ -70,8 +71,18 @@ router.use(authenticate);
  *         description: List of user accounts
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Permission denied
  */
-router.get('/', async (req, res) => {
+router.get('/', checkPermission('accounts', 'read'), async (req, res) => {
   try {
     const userId = req.user.id;
     
@@ -128,9 +139,20 @@ router.get('/', async (req, res) => {
  *         description: Validation error
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Permission denied
  */
 router.post(
   '/',
+  checkPermission('accounts', 'create'),
   [
     body('name')
       .isString()
@@ -200,10 +222,20 @@ router.post(
  *         description: Account details
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Permission denied
  *       404:
  *         description: Account not found
  */
-router.get('/:accountNumber', async (req, res) => {
+router.get('/:accountNumber', checkPermission('accounts', 'read'), async (req, res) => {
   try {
     const { accountNumber } = req.params;
     const userId = req.user.id;

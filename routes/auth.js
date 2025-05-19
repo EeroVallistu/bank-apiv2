@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const { authenticate } = require('../middleware/auth');
+const { checkPermission } = require('../middleware/checkPermission');
 const { 
   User,
   findUserByUsername, 
@@ -148,8 +149,18 @@ userRouter.post(
  *         description: User profile
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Permission denied
  */
-userRouter.get('/me', authenticate, async (req, res) => {
+userRouter.get('/me', authenticate, checkPermission('users', 'read'), async (req, res) => {
   try {
     const user = await findUserById(req.user.id);
     

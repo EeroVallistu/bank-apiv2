@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT INTO roles (name, description, permissions) VALUES
 ('admin', 'Administrator with full access', '{"accounts": ["read", "write", "create", "delete"], "users": ["read", "write", "create", "delete"], "transactions": ["read", "write", "create"]}'),
 ('manager', 'Bank manager with elevated permissions', '{"accounts": ["read", "write", "create"], "users": ["read", "write"], "transactions": ["read", "write", "create"]}'),
-('user', 'Regular bank user', '{"accounts": ["read"], "users": ["read"], "transactions": ["read", "create"]}');
+('user', 'Regular bank user', '{"accounts": ["read", "create"], "users": ["read"], "transactions": ["read", "create"]}');
 
 -- Populate settings table with default settings
 INSERT INTO settings (name, value, description) VALUES

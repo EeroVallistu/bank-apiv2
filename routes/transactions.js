@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const { authenticate } = require('../middleware/auth');
+const { checkPermission } = require('../middleware/checkPermission');
 const { 
   Account,
   Transaction,
@@ -42,8 +43,18 @@ router.use((req, res, next) => {
  *         description: List of user transactions
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Permission denied
  */
-router.get('/', async (req, res) => {
+router.get('/', authenticate, checkPermission('transactions', 'read'), async (req, res) => {
   try {
     // Get user accounts from database
     const userAccounts = await findAccountsByUserId(req.user.id);
@@ -159,6 +170,8 @@ router.get('/', async (req, res) => {
  */
 router.post(
   '/internal',
+  authenticate,
+  checkPermission('transactions', 'create'),
   [
     body('fromAccount').notEmpty().withMessage('Source account is required'),
     body('toAccount').notEmpty().withMessage('Destination account is required'),
@@ -309,6 +322,8 @@ router.post(
  */
 router.post(
   '/external',
+  authenticate,
+  checkPermission('transactions', 'create'),
   [
     body('fromAccount').notEmpty().withMessage('Source account is required'),
     body('toAccount').notEmpty().withMessage('Destination account is required'),
@@ -516,7 +531,7 @@ router.post(
  *       404:
  *         description: Transaction not found
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticate, checkPermission('transactions', 'read'), async (req, res) => {
   try {
     const transaction = await findTransactionById(parseInt(req.params.id));
     
@@ -626,6 +641,8 @@ router.get('/:id', async (req, res) => {
  */
 router.post(
   '/',
+  authenticate,
+  checkPermission('transactions', 'create'),
   [
     body('fromAccount').notEmpty().withMessage('Source account is required'),
     body('toAccount').notEmpty().withMessage('Destination account is required'),
