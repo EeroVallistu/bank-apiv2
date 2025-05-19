@@ -583,6 +583,14 @@ paths:
                           type: string
                         e:
                           type: string
+              example:
+                keys:
+                  - kty: "RSA"
+                    n: "qO4TWcpdgi5KDtydMZxjnDadxh-5P-QpjV8IemSHdfRVwj0vm0l-Ilvf_ufyK9bXdGMgIwXfR1G6BSLtL11JyGiFuk9ixVZmxiwVsWc51MgAtdFyzaZ0KJoO1MQzS0Mf4-3scxhmFOpvFlW_7FNvsI2mLr2jfncEJErNU5Rns_0eLnF_OietnuPkmV4xWMVJ0XyEZ6h-GN6ItI1zLJoqEEKRIs6H8ZMPAOvcdi2ByZWNRKFzfPQbE6L02fAsQIoXi7TjiVB9AoUS8yWi2GR_Td9eP7jbHG9itT86lwvwSdBGbQ8wGFNiy3OQo6fqHhWIRpAqK13zzLu03UmLa0tAow"
+                    e: "AQAB"
+                    use: "sig"
+                    kid: "1"
+                    alg: "RS256"
         '500':
           description: Error retrieving JWKS
           content:
