@@ -631,21 +631,21 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: success
                   base:
                     type: string
                     example: EUR
-                  timestamp:
-                    type: string
-                    format: date-time
                   rates:
                     type: object
                     example:
                       USD: 1.09
                       GBP: 0.86
                       SEK: 11.21
+              example:
+                base: EUR
+                rates:
+                  USD: 1.09
+                  GBP: 0.86
+                  SEK: 11.21
         '400':
           description: Invalid currency
           content:

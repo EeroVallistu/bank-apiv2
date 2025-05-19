@@ -45,7 +45,6 @@ router.get('/exchange-rates', [
 
     res.json({
       base,
-      timestamp: new Date().toISOString(),
       rates
     });
   } catch (error) {
