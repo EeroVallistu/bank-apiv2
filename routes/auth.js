@@ -109,13 +109,22 @@ userRouter.post(
         return res.status(409).json({ error: 'Username or email already in use' });
       }
 
-      // Create new user with Sequelize
+
+      // Find the default 'user' role
+      const { Role } = require('../models');
+      const userRole = await Role.findOne({ where: { name: 'user' } });
+      if (!userRole) {
+        return res.status(500).json({ error: "Default user role not found. Please check roles table." });
+      }
+
+      // Create new user with default role
       await User.create({
         username,
         password, // WARNING: Storing plain text password (not secure!)
         full_name: fullName,
         email,
-        is_active: true
+        is_active: true,
+        role_id: userRole.id
       });
 
       res.status(201).json({ message: 'User registered successfully' });
