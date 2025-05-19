@@ -89,37 +89,10 @@ class CentralBankService {
         
         if (existingBank && existingBank.bankPrefix !== currentPrefix) {
           console.log(`Bank already registered with prefix ${existingBank.bankPrefix} instead of ${currentPrefix}`);
-          
-          // Update our environment with the correct prefix
-          try {
-            // Update .env file
-            const envPath = path.join(__dirname, '../.env');
-            if (fs.existsSync(envPath)) {
-              let envContent = fs.readFileSync(envPath, 'utf8');
-              
-              // Update BANK_PREFIX in .env
-              if (envContent.includes('BANK_PREFIX=')) {
-                envContent = envContent.replace(/BANK_PREFIX=.*(\r?\n|$)/g, `BANK_PREFIX=${existingBank.bankPrefix}$1`);
-              } else {
-                envContent += `\nBANK_PREFIX=${existingBank.bankPrefix}`;
-              }
-              
-              // Write updated content back to .env file
-              fs.writeFileSync(envPath, envContent);
-              
-              // Also update process.env
-              process.env.BANK_PREFIX = existingBank.bankPrefix;
-              
-              console.log(`Updated environment with existing bank prefix: ${existingBank.bankPrefix}`);
-              
-              // Update account numbers if needed
-              if (currentPrefix && currentPrefix !== existingBank.bankPrefix) {
-                console.log(`Updating account numbers from ${currentPrefix} to ${existingBank.bankPrefix}`);
-                await this.updateAllAccountNumbers(currentPrefix, existingBank.bankPrefix);
-              }
-            }
-          } catch (fileError) {
-            console.error('Failed to update environment with existing bank prefix:', fileError);
+          // Update account numbers if needed
+          if (currentPrefix && currentPrefix !== existingBank.bankPrefix) {
+            console.log(`Updating account numbers from ${currentPrefix} to ${existingBank.bankPrefix}`);
+            await this.updateAllAccountNumbers(currentPrefix, existingBank.bankPrefix);
           }
           
           return existingBank;
@@ -147,54 +120,10 @@ class CentralBankService {
       console.log('Bank re-registration successful:', result);
       
       // Save registration data to .env only
-      try {
-        const envPath = path.join(__dirname, '../.env');
-        if (fs.existsSync(envPath)) {
-          let envContent = fs.readFileSync(envPath, 'utf8');
-          
-          // Check if the bank prefix has changed
-          let prefixChanged = false;
-          
-          // Update BANK_PREFIX if provided
-          if (result.bankPrefix) {
-            if (result.bankPrefix !== oldBankPrefix) {
-              prefixChanged = true;
-            }
-            
-            if (envContent.includes('BANK_PREFIX=')) {
-              envContent = envContent.replace(/BANK_PREFIX=.*(\r?\n|$)/g, `BANK_PREFIX=${result.bankPrefix}$1`);
-            } else {
-              envContent += `\nBANK_PREFIX=${result.bankPrefix}`;
-            }
-          }
-          
-          // Update API_KEY if provided
-          if (result.apiKey) {
-            if (envContent.includes('API_KEY=')) {
-              envContent = envContent.replace(/API_KEY=.*(\r?\n|$)/g, `API_KEY=${result.apiKey}$1`);
-            } else {
-              envContent += `\nAPI_KEY=${result.apiKey}`;
-            }
-          }
-          
-          // Write updated content back to .env file
-          fs.writeFileSync(envPath, envContent);
-          console.log('Updated environment variables in .env file');
-          
-          // Also update process.env for the current process
-          if (result.bankPrefix) process.env.BANK_PREFIX = result.bankPrefix;
-          if (result.apiKey) process.env.API_KEY = result.apiKey;
-          
-          // Update all account numbers if the prefix has changed
-          if (prefixChanged && oldBankPrefix) {
-            console.log(`Bank prefix changed from ${oldBankPrefix} to ${result.bankPrefix}. Updating account numbers...`);
-            await this.updateAllAccountNumbers(oldBankPrefix, result.bankPrefix);
-          }
-        } else {
-          console.warn('.env file not found, could not update environment variables');
-        }
-      } catch (fileError) {
-        console.error('Failed to update .env with re-registration data:', fileError);
+      // Update all account numbers if the prefix has changed
+      if (result.bankPrefix && result.bankPrefix !== oldBankPrefix && oldBankPrefix) {
+        console.log(`Bank prefix changed from ${oldBankPrefix} to ${result.bankPrefix}. Updating account numbers...`);
+        await this.updateAllAccountNumbers(oldBankPrefix, result.bankPrefix);
       }
       
       return result;
@@ -380,37 +309,10 @@ class CentralBankService {
         
         if (existingBank) {
           console.log(`Found our bank with different prefix: ${existingBank.bankPrefix} instead of ${prefix}`);
-          
-          // Update our environment with the correct prefix
-          try {
-            // Update .env file
-            const envPath = path.join(__dirname, '../.env');
-            if (fs.existsSync(envPath)) {
-              let envContent = fs.readFileSync(envPath, 'utf8');
-              
-              // Update BANK_PREFIX in .env
-              if (envContent.includes('BANK_PREFIX=')) {
-                envContent = envContent.replace(/BANK_PREFIX=.*(\r?\n|$)/g, `BANK_PREFIX=${existingBank.bankPrefix}$1`);
-              } else {
-                envContent += `\nBANK_PREFIX=${existingBank.bankPrefix}`;
-              }
-              
-              // Write updated content back to .env file
-              fs.writeFileSync(envPath, envContent);
-              
-              // Also update process.env
-              process.env.BANK_PREFIX = existingBank.bankPrefix;
-              
-              console.log(`Updated environment with existing bank prefix: ${existingBank.bankPrefix}`);
-              
-              // Update account numbers if needed
-              if (prefix && prefix !== existingBank.bankPrefix) {
-                console.log(`Updating account numbers from ${prefix} to ${existingBank.bankPrefix}`);
-                await this.updateAllAccountNumbers(prefix, existingBank.bankPrefix);
-              }
-            }
-          } catch (fileError) {
-            console.error('Failed to update environment with existing bank prefix:', fileError);
+          // Update account numbers if needed
+          if (prefix && prefix !== existingBank.bankPrefix) {
+            console.log(`Updating account numbers from ${prefix} to ${existingBank.bankPrefix}`);
+            await this.updateAllAccountNumbers(prefix, existingBank.bankPrefix);
           }
           
           // Cache the result
