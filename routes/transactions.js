@@ -747,18 +747,12 @@ const processInternalTransfer = async (req, res) => {
       // Commit the transaction
       await dbTransaction.commit();
 
-      // Format response data
+      // Format response data (minimal, matching OpenAPI example)
       const transactionData = {
-        id: transaction.id,
         fromAccount: transaction.from_account,
         toAccount: transaction.to_account,
         amount: parseFloat(transaction.amount),
-        currency: transaction.currency,
-        explanation: transaction.explanation,
-        senderName: transaction.sender_name,
-        receiverName: transaction.receiver_name,
-        status: transaction.status,
-        createdAt: transaction.created_at
+        explanation: transaction.explanation
       };
 
       res.status(201).json({ data: transactionData });

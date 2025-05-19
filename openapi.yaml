@@ -413,6 +413,12 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/Transaction'
+              example:
+                data:
+                  fromAccount: "353c8b72e4a9f15d3b82"
+                  toAccount: "353f9a23d1c7b45e8t91"
+                  amount: 150.00
+                  explanation: "Payment for services"
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
