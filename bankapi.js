@@ -32,7 +32,7 @@ const { userRoutes, sessionRoutes } = require('./routes/auth');
 const accountRoutes = require('./routes/accounts');
 const transactionRoutes = require('./routes/transactions');
 const b2bRoutes = require('./routes/b2b');
-const infoRoute = require('./routes/info');
+
 const currencyRoutes = require('./routes/currency');
 
 // Create express app
@@ -167,7 +167,7 @@ app.use('/sessions', sessionRoutes);
 app.use('/accounts', accountRoutes);
 app.use('/transfers', transactionRoutes);
 app.use('/transactions', b2bRoutes);
-app.use('/bank-info', infoRoute);
+
 app.use('/', currencyRoutes);
 
 // JWKS endpoint for verifying digital signatures
@@ -246,7 +246,6 @@ async function initializeApp() {
     startServer();
   } catch (error) {
     console.error('Application initialization error:', error);
-    console.log('Using in-memory data store as fallback.');
     startServer();
   }
 }
