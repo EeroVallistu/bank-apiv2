@@ -22,27 +22,29 @@ components:
         id:
           type: integer
           description: Account ID
+          example: 1
         accountNumber:
           type: string
           description: Unique account number with bank prefix
+          example: 71093v31i57k1
         userId:
           type: integer
           description: ID of the account owner
+          example: 1
         balance:
           type: number
           format: float
           description: Current account balance
+          example: 1000.00
         currency:
           type: string
           enum: [EUR, USD, GBP, SEK]
           description: Account currency
+          example: EUR
         name:
           type: string
           description: Account name/description
-        created_at:
-          type: string
-          format: date-time
-          description: Account creation date
+          example: Main Savings
       required:
         - accountNumber
         - userId
@@ -98,13 +100,21 @@ components:
           schema:
             type: object
             properties:
-              status:
-                type: string
-                example: error
-              message:
+              error:
                 type: string
                 example: Authentication required
     
+    PermissionDeniedError:
+      description: User does not have required permissions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: Permission denied
+
     ValidationError:
       description: Input validation error
       content:
@@ -112,45 +122,14 @@ components:
           schema:
             type: object
             properties:
-              status:
+              error:
                 type: string
-                example: error
-              errors:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    field:
-                      type: string
-                    message:
-                      type: string
+                example: Validation failed
 
 security:
   - bearerAuth: []
 
 paths:
-  /health:
-    get:
-      summary: Get API health status
-      security: []
-      tags: [System]
-      responses:
-        '200':
-          description: API is operational
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  message:
-                    type: string
-                    example: API is operational
-                  timestamp:
-                    type: string
-                    format: date-time
 
   /users:
     post:
@@ -205,10 +184,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: error
-                  message:
+                  error:
                     type: string
                     example: Username or email already in use
 
@@ -242,8 +218,16 @@ paths:
                       created_at:
                         type: string
                         format: date-time
+              example:
+                data:
+                  id: 1
+                  username: jsmith
+                  email: john.smith@example.com
+                  fullName: John Smith
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedError'
 
   /sessions:
     post:
@@ -274,21 +258,9 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: success
                   token:
                     type: string
                     example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-                  user:
-                    type: object
-                    properties:
-                      id:
-                        type: integer
-                      username:
-                        type: string
-                      fullName:
-                        type: string
         '401':
           description: Invalid credentials
           content:
@@ -296,29 +268,15 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: error
-                  message:
+                  error:
                     type: string
                     example: Invalid credentials
     delete:
       summary: Logout current user
       tags: [Sessions]
       responses:
-        '200':
+        '204':
           description: User logged out successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  message:
-                    type: string
-                    example: Successfully logged out
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
@@ -343,6 +301,8 @@ paths:
                       $ref: '#/components/schemas/Account'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedError'
     
     post:
       summary: Create a new account
@@ -372,18 +332,22 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: success
                   data:
                     $ref: '#/components/schemas/Account'
-                  message:
-                    type: string
-                    example: Account created successfully
+              example:
+                data:
+                  name: Main Savings
+                  currency: EUR
+                  balance: 1000
+                  accountNumber: 71093v31i57k1
+                  id: 1
+                  userId: 1
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedError'
 
   /transfers:
     get:
@@ -404,12 +368,38 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Transaction'
+              example:
+                status: success
+                data:
+                  - id: 101
+                    fromAccount: "71093v31i57k1"
+                    toAccount: "353f9a23d1c7b45e8t91"
+                    amount: 250.75
+                    currency: EUR
+                    explanation: "Invoice payment for May 2025"
+                    senderName: "Alice Example"
+                    receiverName: "Bob Example"
+                    status: completed
+                    isExternal: false
+                    created_at: "2025-05-18T14:23:00Z"
+                  - id: 102
+                    fromAccount: "71093v31i57k1"
+                    toAccount: "9988aabbccddeeff0011"
+                    amount: 100.00
+                    currency: USD
+                    explanation: "Refund for order #1234"
+                    senderName: "Alice Example"
+                    receiverName: "Charlie Example"
+                    status: pending
+                    isExternal: true
+                    created_at: "2025-05-19T09:00:00Z"
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-
-  /transfers/internal:
+        '403':
+          $ref: '#/components/responses/PermissionDeniedError'
+          
     post:
-      summary: Create a new internal transaction
+      summary: Create a new transaction (internal or external)
       tags: [Transactions]
       requestBody:
         required: true
@@ -434,7 +424,7 @@ paths:
                   example: 150.00
                 explanation:
                   type: string
-                  example: Rent payment for January
+                  example: "Payment for services"
       responses:
         '201':
           description: Transaction created successfully
@@ -443,80 +433,25 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: success
                   data:
                     $ref: '#/components/schemas/Transaction'
+              example:
+                data:
+                  fromAccount: "353c8b72e4a9f15d3b82"
+                  toAccount: "353f9a23d1c7b45e8t91"
+                  amount: 150.00
+                  explanation: "Payment for services"
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '402':
           description: Insufficient funds
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: error
-                  message:
-                    type: string
-                    example: Insufficient funds
+        '403':
+          $ref: '#/components/responses/PermissionDeniedError'
         '404':
           description: Account not found
 
-  /transfers/external:
-    post:
-      summary: Create a new external transaction
-      tags: [Transactions]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - fromAccount
-                - toAccount
-                - amount
-                - explanation
-              properties:
-                fromAccount:
-                  type: string
-                  example: 353c8b72e4a9f15d3b82
-                toAccount:
-                  type: string
-                  example: 512f9a23d1c7b45e8t91
-                amount:
-                  type: number
-                  example: 150.00
-                explanation:
-                  type: string
-                  example: Payment for services
-      responses:
-        '201':
-          description: Transaction created successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: success
-                  data:
-                    $ref: '#/components/schemas/Transaction'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '402':
-          description: Insufficient funds
-        '404':
-          description: Account not found
 
   /transfers/{id}:
     get:
@@ -541,10 +476,31 @@ paths:
                     example: success
                   data:
                     $ref: '#/components/schemas/Transaction'
+              example:
+                data:
+                  id: 42
+                  fromAccount: "353c8b72e4a9f15d3b82"
+                  toAccount: "353f9a23d1c7b45e8t91"
+                  amount: 150.00
+                  currency: EUR
+                  explanation: "Detailed reason for the transfer, e.g. 'Invoice #1234 payment for web development services, May 2025'"
+                  senderName: "Alice Example"
+                  receiverName: "Bob Example"
+                  status: completed
+                  isExternal: false
+                  created_at: "2025-05-19T10:00:00Z"
         '404':
           description: Transaction not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Transaction not found
         '403':
-          description: Access forbidden
+          $ref: '#/components/responses/PermissionDeniedError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
@@ -584,10 +540,34 @@ paths:
                     example: 42
         '400':
           description: Invalid JWT or signature
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Invalid JWT or signature
         '404':
           description: Destination account not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Destination account not found
         '500':
           description: Processing error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Processing error
 
   /jwks.json:
     get:
@@ -619,29 +599,25 @@ paths:
                           type: string
                         e:
                           type: string
+              example:
+                keys:
+                  - kty: "RSA"
+                    n: "qO4TWcpdgi5KDtydMZxjnDadxh-5P-QpjV8IemSHdfRVwj0vm0l-Ilvf_ufyK9bXdGMgIwXfR1G6BSLtL11JyGiFuk9ixVZmxiwVsWc51MgAtdFyzaZ0KJoO1MQzS0Mf4-3scxhmFOpvFlW_7FNvsI2mLr2jfncEJErNU5Rns_0eLnF_OietnuPkmV4xWMVJ0XyEZ6h-GN6ItI1zLJoqEEKRIs6H8ZMPAOvcdi2ByZWNRKFzfPQbE6L02fAsQIoXi7TjiVB9AoUS8yWi2GR_Td9eP7jbHG9itT86lwvwSdBGbQ8wGFNiy3OQo6fqHhWIRpAqK13zzLu03UmLa0tAow"
+                    e: "AQAB"
+                    use: "sig"
+                    kid: "1"
+                    alg: "RS256"
         '500':
           description: Error retrieving JWKS
-
-  /bank-info:
-    get:
-      summary: Get bank information
-      tags: [Info]
-      responses:
-        '200':
-          description: Bank information
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  name:
+                  error:
                     type: string
-                    example: Eero Bank
-                  prefix:
-                    type: string
-                    example: 353
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
+                    example: Error retrieving JWKS
+
 
   /exchange-rates:
     get:
@@ -671,21 +647,21 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: success
                   base:
                     type: string
                     example: EUR
-                  timestamp:
-                    type: string
-                    format: date-time
                   rates:
                     type: object
                     example:
                       USD: 1.09
                       GBP: 0.86
                       SEK: 11.21
+              example:
+                base: EUR
+                rates:
+                  USD: 1.09
+                  GBP: 0.86
+                  SEK: 11.21
         '400':
           description: Invalid currency
           content:

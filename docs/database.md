@@ -44,7 +44,6 @@ DB_NAME=bank_api
 DB_USER=bank_app
 DB_PASSWORD=app_secure_password
 DB_DIALECT=mariadb
-```
 
 ## Database Models
 

@@ -8,7 +8,7 @@ const centralBankService = require('./centralBankService');
 const currencyService = require('./currencyService');
 const keyManager = require('../utils/keyManager');
 const jwt = require('jsonwebtoken');
-const fetch = require('node-fetch');
+const { fetch } = require('undici');
 const { 
   NotFoundError, 
   ValidationError, 

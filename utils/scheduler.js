@@ -1,7 +1,5 @@
 const centralBankService = require('../services/centralBankService');
-const dotenv = require('dotenv');
-const path = require('path');
-const fs = require('fs');
+const { Op } = require('sequelize');
 
 /**
  * Task scheduler for the bank API
@@ -91,9 +89,11 @@ class Scheduler {
     
     // Run immediate bank registration check on startup
     console.log('Running initial bank registration check...');
-    this.checkBankRegistration().catch(error => {
-      console.error('Error during initial bank registration check:', error);
-    });
+    setTimeout(() => {
+      this.checkBankRegistration().catch(error => {
+        console.error('Error during initial bank registration check:', error);
+      });
+    }, 2000); // Short delay to ensure database connection is established
     
     this.running = true;
     console.log('Scheduler started');
@@ -112,17 +112,24 @@ class Scheduler {
   }
 
   /**
-   * Get the current bank prefix directly from .env file
-   * @returns {string|null} The current bank prefix or null if not found
+   * Get the current bank prefix from database
+   * @returns {Promise<string|null>} The current bank prefix or null if not found
    */
-  getCurrentBankPrefix() {
+  async getCurrentBankPrefix() {
     try {
-      const envPath = path.resolve(process.cwd(), '.env');
-      const envContent = fs.readFileSync(envPath, 'utf8');
-      const match = envContent.match(/BANK_PREFIX=([^\r\n]+)/);
-      return match ? match[1].trim() : null;
+      // Check database for bank prefix
+      if (process.env.USE_DATABASE === 'true') {
+        const DatabaseSync = require('./databaseSync');
+        const dbPrefix = await DatabaseSync.getCurrentDatabasePrefix();
+        if (dbPrefix) {
+          console.log('Retrieved bank prefix from database:', dbPrefix);
+          return dbPrefix;
+        }
+      }
+      
+      return null;
     } catch (error) {
-      console.error('Error reading bank prefix from .env:', error.message);
+      console.error('Error getting bank prefix from database:', error.message);
       return null;
     }
   }
@@ -135,12 +142,12 @@ class Scheduler {
     try {
       console.log('Checking bank registration status with central bank...');
       
-      // Get bank prefix directly from .env file
-      const bankPrefix = this.getCurrentBankPrefix();
+      // Get bank prefix from database
+      const bankPrefix = await this.getCurrentBankPrefix();
       
       // Skip if bank prefix is not set
       if (!bankPrefix) {
-        console.log('Bank prefix not set, skipping registration check');
+        console.log('Bank prefix not found in database, skipping registration check');
         return;
       }
       

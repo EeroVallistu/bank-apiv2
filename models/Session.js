@@ -14,7 +14,9 @@ const Session = sequelize.define('Session', {
   token: {
     type: DataTypes.STRING(255),
     allowNull: false,
-    unique: true
+    unique: {
+      name: 'uk_session_token' // Use an explicit name for the unique index
+    }
   },
   expires_at: {
     type: DataTypes.DATE,

@@ -6,7 +6,6 @@ TRANSACTION_URL=https://your-domain.com/transactions/b2b # Your bank's transacti
 JWKS_URL=https://your-domain.com/jwks.json              # Your bank's JWKS endpoint
 
 # -- SETTINGS PROVIDED BY CENTRAL BANK DURING REGISTRATION --
-BANK_PREFIX=000                                         # Assigned by the central bank during registration
 API_KEY=your_central_bank_api_key                       # Received from central bank during registration
 
 # -- DEFAULT SETTINGS (can leave unchanged) --

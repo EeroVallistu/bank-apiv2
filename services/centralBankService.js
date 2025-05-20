@@ -1,4 +1,4 @@
-const fetch = require('node-fetch');
+const { fetch } = require('undici');
 const cache = require('../utils/cache');
 const fs = require('fs');
 const path = require('path');
@@ -7,6 +7,19 @@ const path = require('path');
  * Service for interacting with the Central Bank API
  */
 class CentralBankService {
+  /**
+   * Get our own bank's prefix from the central bank (by name or transaction URL)
+   * @returns {Promise<string|null>} The bank prefix or null if not found
+   */
+  async getOurBankPrefix(forceRefresh = false) {
+    const ourBankName = process.env.BANK_NAME || 'Bank API';
+    const ourTransactionUrl = process.env.TRANSACTION_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/transactions/b2b`;
+    const allBanks = await this.getAllBanks(forceRefresh);
+    const ourBank = allBanks.find(bank =>
+      bank.name === ourBankName || bank.transactionUrl === ourTransactionUrl
+    );
+    return ourBank ? ourBank.bankPrefix : null;
+  }
   constructor() {
     // Ensure URL doesn't have trailing slash
     this.apiUrl = (process.env.CENTRAL_BANK_URL || 'https://henno.cfd/central-bank').replace(/\/$/, '');
@@ -58,62 +71,9 @@ class CentralBankService {
    */
   async reRegisterBank(currentPrefix = null) {
     try {
-      // First check if we're already registered with a different prefix
-      if (currentPrefix) {
-        console.log('Checking if bank is already registered with a different prefix...');
-        
-        // Get all banks and check if our bank exists with any prefix
-        const allBanks = await this.getAllBanks(true);
-        
-        // Look for a bank with matching name or transaction URL
-        const ourBankName = process.env.BANK_NAME || 'Bank API';
-        const ourTransactionUrl = process.env.TRANSACTION_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/transactions/b2b`;
-        
-        const existingBank = allBanks.find(bank => 
-          bank.name === ourBankName || 
-          bank.transactionUrl === ourTransactionUrl
-        );
-        
-        if (existingBank && existingBank.bankPrefix !== currentPrefix) {
-          console.log(`Bank already registered with prefix ${existingBank.bankPrefix} instead of ${currentPrefix}`);
-          
-          // Update our environment with the correct prefix
-          try {
-            // Update .env file
-            const envPath = path.join(__dirname, '../.env');
-            if (fs.existsSync(envPath)) {
-              let envContent = fs.readFileSync(envPath, 'utf8');
-              
-              // Update BANK_PREFIX in .env
-              if (envContent.includes('BANK_PREFIX=')) {
-                envContent = envContent.replace(/BANK_PREFIX=.*(\r?\n|$)/g, `BANK_PREFIX=${existingBank.bankPrefix}$1`);
-              } else {
-                envContent += `\nBANK_PREFIX=${existingBank.bankPrefix}`;
-              }
-              
-              // Write updated content back to .env file
-              fs.writeFileSync(envPath, envContent);
-              
-              // Also update process.env
-              process.env.BANK_PREFIX = existingBank.bankPrefix;
-              
-              console.log(`Updated environment with existing bank prefix: ${existingBank.bankPrefix}`);
-              
-              // Update account numbers if needed
-              if (currentPrefix && currentPrefix !== existingBank.bankPrefix) {
-                console.log(`Updating account numbers from ${currentPrefix} to ${existingBank.bankPrefix}`);
-                await this.updateAllAccountNumbers(currentPrefix, existingBank.bankPrefix);
-              }
-            }
-          } catch (fileError) {
-            console.error('Failed to update environment with existing bank prefix:', fileError);
-          }
-          
-          return existingBank;
-        }
-      }
-      
-      console.log('Auto re-registering bank with central bank...');
+      // Get all banks and check if our bank exists with any prefix
+      console.log('Checking if bank is already registered with any prefix...');
+      const allBanks = await this.getAllBanks(true);
       
       // Prepare registration data from environment variables
       const registrationData = {
@@ -123,7 +83,27 @@ class CentralBankService {
         transactionUrl: process.env.TRANSACTION_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/transactions/b2b`
       };
       
-      console.log('Re-registration data:', registrationData);
+      // Look for a bank with matching JWKS URL or transaction URL
+      const existingBank = allBanks.find(bank => 
+        bank.jwksUrl === registrationData.jwksUrl || 
+        bank.transactionUrl === registrationData.transactionUrl
+      );
+      
+      if (existingBank) {
+        console.log(`Found existing bank registration: ${existingBank.name} (${existingBank.bankPrefix})`);
+        
+        // Update account numbers if needed
+        if (currentPrefix && currentPrefix !== existingBank.bankPrefix) {
+          console.log(`Updating account numbers from ${currentPrefix} to ${existingBank.bankPrefix}`);
+          await this.updateAllAccountNumbers(currentPrefix, existingBank.bankPrefix);
+        }
+        
+        return existingBank;
+      }
+      
+      // If we reach here, no existing bank was found, so register new one
+      console.log('No existing registration found. Registering bank with central bank...');
+      console.log('Registration data:', registrationData);
       
       // Store the old bank prefix for later comparison
       const oldBankPrefix = process.env.BANK_PREFIX;
@@ -131,62 +111,40 @@ class CentralBankService {
       // Call the registration method
       const result = await this.registerBank(registrationData);
       
-      console.log('Bank re-registration successful:', result);
+      console.log('Bank registration successful:', result);
       
-      // Save registration data to .env only
-      try {
-        const envPath = path.join(__dirname, '../.env');
-        if (fs.existsSync(envPath)) {
-          let envContent = fs.readFileSync(envPath, 'utf8');
-          
-          // Check if the bank prefix has changed
-          let prefixChanged = false;
-          
-          // Update BANK_PREFIX if provided
-          if (result.bankPrefix) {
-            if (result.bankPrefix !== oldBankPrefix) {
-              prefixChanged = true;
-            }
-            
-            if (envContent.includes('BANK_PREFIX=')) {
-              envContent = envContent.replace(/BANK_PREFIX=.*(\r?\n|$)/g, `BANK_PREFIX=${result.bankPrefix}$1`);
-            } else {
-              envContent += `\nBANK_PREFIX=${result.bankPrefix}`;
-            }
-          }
-          
-          // Update API_KEY if provided
-          if (result.apiKey) {
-            if (envContent.includes('API_KEY=')) {
-              envContent = envContent.replace(/API_KEY=.*(\r?\n|$)/g, `API_KEY=${result.apiKey}$1`);
-            } else {
-              envContent += `\nAPI_KEY=${result.apiKey}`;
-            }
-          }
-          
-          // Write updated content back to .env file
-          fs.writeFileSync(envPath, envContent);
-          console.log('Updated environment variables in .env file');
-          
-          // Also update process.env for the current process
-          if (result.bankPrefix) process.env.BANK_PREFIX = result.bankPrefix;
-          if (result.apiKey) process.env.API_KEY = result.apiKey;
-          
-          // Update all account numbers if the prefix has changed
-          if (prefixChanged && oldBankPrefix) {
-            console.log(`Bank prefix changed from ${oldBankPrefix} to ${result.bankPrefix}. Updating account numbers...`);
-            await this.updateAllAccountNumbers(oldBankPrefix, result.bankPrefix);
-          }
-        } else {
-          console.warn('.env file not found, could not update environment variables');
-        }
-      } catch (fileError) {
-        console.error('Failed to update .env with re-registration data:', fileError);
+      // Update all account numbers if the prefix has changed
+      if (result.bankPrefix && result.bankPrefix !== oldBankPrefix && oldBankPrefix) {
+        console.log(`Bank prefix changed from ${oldBankPrefix} to ${result.bankPrefix}. Updating account numbers...`);
+        await this.updateAllAccountNumbers(oldBankPrefix, result.bankPrefix);
       }
       
       return result;
     } catch (error) {
       console.error('Error re-registering bank:', error);
+      
+      // Try to recover by finding the existing bank
+      try {
+        console.log('Attempting to recover by finding existing bank registration...');
+        const allBanks = await this.getAllBanks(true);
+        const registrationData = {
+          jwksUrl: process.env.JWKS_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/jwks.json`,
+          transactionUrl: process.env.TRANSACTION_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/transactions/b2b`
+        };
+        
+        const existingBank = allBanks.find(bank => 
+          bank.jwksUrl === registrationData.jwksUrl || 
+          bank.transactionUrl === registrationData.transactionUrl
+        );
+        
+        if (existingBank) {
+          console.log(`Found existing bank: ${existingBank.name} (${existingBank.bankPrefix})`);
+          return existingBank;
+        }
+      } catch (recoveryError) {
+        console.error('Recovery attempt failed:', recoveryError);
+      }
+      
       throw error;
     }
   }
@@ -367,37 +325,10 @@ class CentralBankService {
         
         if (existingBank) {
           console.log(`Found our bank with different prefix: ${existingBank.bankPrefix} instead of ${prefix}`);
-          
-          // Update our environment with the correct prefix
-          try {
-            // Update .env file
-            const envPath = path.join(__dirname, '../.env');
-            if (fs.existsSync(envPath)) {
-              let envContent = fs.readFileSync(envPath, 'utf8');
-              
-              // Update BANK_PREFIX in .env
-              if (envContent.includes('BANK_PREFIX=')) {
-                envContent = envContent.replace(/BANK_PREFIX=.*(\r?\n|$)/g, `BANK_PREFIX=${existingBank.bankPrefix}$1`);
-              } else {
-                envContent += `\nBANK_PREFIX=${existingBank.bankPrefix}`;
-              }
-              
-              // Write updated content back to .env file
-              fs.writeFileSync(envPath, envContent);
-              
-              // Also update process.env
-              process.env.BANK_PREFIX = existingBank.bankPrefix;
-              
-              console.log(`Updated environment with existing bank prefix: ${existingBank.bankPrefix}`);
-              
-              // Update account numbers if needed
-              if (prefix && prefix !== existingBank.bankPrefix) {
-                console.log(`Updating account numbers from ${prefix} to ${existingBank.bankPrefix}`);
-                await this.updateAllAccountNumbers(prefix, existingBank.bankPrefix);
-              }
-            }
-          } catch (fileError) {
-            console.error('Failed to update environment with existing bank prefix:', fileError);
+          // Update account numbers if needed
+          if (prefix && prefix !== existingBank.bankPrefix) {
+            console.log(`Updating account numbers from ${prefix} to ${existingBank.bankPrefix}`);
+            await this.updateAllAccountNumbers(prefix, existingBank.bankPrefix);
           }
           
           // Cache the result
@@ -493,30 +424,76 @@ class CentralBankService {
    */
   async checkBankRegistration() {
     try {
-      const bankPrefix = process.env.BANK_PREFIX;
+      console.log('Checking bank registration with central bank...');
       
-      if (!bankPrefix) {
-        console.log('Bank prefix not set, skipping check');
-        return false;
+      // First, try to get our current bank prefix from database
+      const { Setting } = require('../models');
+      const prefixSetting = await Setting.findOne({
+        where: { name: 'bank_prefix' }
+      });
+      
+      const currentPrefix = prefixSetting ? prefixSetting.value : null;
+      
+      if (currentPrefix) {
+        console.log(`Checking if bank with prefix ${currentPrefix} exists`);
+        
+        // Get all banks from central bank
+        const allBanks = await this.getAllBanks(true);
+        
+        // Check if our prefix exists
+        const bankWithPrefix = allBanks.find(bank => bank.bankPrefix === currentPrefix);
+        
+        if (bankWithPrefix) {
+          console.log(`Found our bank by prefix: ${bankWithPrefix.name} (${bankWithPrefix.bankPrefix})`);
+          return true;
+        }
+        
+        console.log(`No bank found with prefix ${currentPrefix}, checking URLs...`);
+      } else {
+        console.log('No bank prefix found in database, checking URLs...');
       }
       
-      console.log(`Checking bank registration for prefix ${bankPrefix}`);
+      // If we couldn't find by prefix, check by URLs
+      const jwksUrl = process.env.JWKS_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/jwks.json`;
+      const transactionUrl = process.env.TRANSACTION_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/transactions/b2b`;
       
-      // Get bank details from central bank
-      const bankDetails = await this.getBankDetails(bankPrefix, true);
+      console.log(`Looking for bank with JWKS URL: ${jwksUrl} or transaction URL: ${transactionUrl}`);
       
-      if (!bankDetails) {
-        console.log('Bank not found in central bank registry, re-registration required');
-        return false;
+      // Get all banks if we haven't already
+      const allBanks = currentPrefix ? await this.getAllBanks(false) : await this.getAllBanks(true);
+      
+      const ourBank = allBanks.find(bank => 
+        bank.jwksUrl === jwksUrl || 
+        bank.transactionUrl === transactionUrl
+      );
+      
+      if (ourBank) {
+        console.log(`Found our bank by URLs: ${ourBank.name} (${ourBank.bankPrefix})`);
+        
+        // Update our prefix in database if it's different
+        if (currentPrefix !== ourBank.bankPrefix) {
+          console.log(`Bank prefix in database (${currentPrefix}) doesn't match central bank (${ourBank.bankPrefix}), updating...`);
+          
+          // Update the database setting
+          if (prefixSetting) {
+            await prefixSetting.update({ value: ourBank.bankPrefix });
+          } else {
+            await Setting.create({
+              name: 'bank_prefix',
+              value: ourBank.bankPrefix,
+              description: 'Bank prefix for account numbers'
+            });
+          }
+          
+          // Check if any accounts need prefix updates
+          await this.updateOutdatedAccounts(ourBank.bankPrefix);
+        }
+        
+        return true;
       }
       
-      // If we're here, the bank is registered
-      console.log(`Bank registration confirmed: ${bankDetails.name} (${bankDetails.bankPrefix})`);
-      
-      // Check if any accounts need prefix updates
-      await this.updateOutdatedAccounts(bankDetails.bankPrefix);
-      
-      return true;
+      console.log('Our bank not found in central bank registry, registration required');
+      return false;
     } catch (error) {
       console.error('Error checking bank registration:', error);
       return false;

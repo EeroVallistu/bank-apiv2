@@ -106,15 +106,15 @@ CREATE TABLE IF NOT EXISTS settings (
     name VARCHAR(100) NOT NULL UNIQUE,
     value TEXT NOT NULL,
     description VARCHAR(255),
-    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 -- Populate roles table with default roles
 INSERT INTO roles (name, description, permissions) VALUES
 ('admin', 'Administrator with full access', '{"accounts": ["read", "write", "create", "delete"], "users": ["read", "write", "create", "delete"], "transactions": ["read", "write", "create"]}'),
 ('manager', 'Bank manager with elevated permissions', '{"accounts": ["read", "write", "create"], "users": ["read", "write"], "transactions": ["read", "write", "create"]}'),
-('user', 'Regular bank user', '{"accounts": ["read"], "users": ["read"], "transactions": ["read", "create"]}');
+('user', 'Regular bank user', '{"accounts": ["read", "create"], "users": ["read"], "transactions": ["read", "create"]}');
 
 -- Populate settings table with default settings
 INSERT INTO settings (name, value, description) VALUES
@@ -148,7 +148,8 @@ BEGIN
             action,
             entity_type,
             entity_id,
-            details
+            details,
+            created_at
         ) VALUES (
             NULL, -- System action
             'BANK_PREFIX_CHANGED',
@@ -157,7 +158,8 @@ BEGIN
             JSON_OBJECT(
                 'old_prefix', old_prefix,
                 'new_prefix', new_prefix
-            )
+            ),
+            NOW()
         );
     END IF;
 END //

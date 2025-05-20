@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const { authenticate } = require('../middleware/auth');
+const { checkPermission } = require('../middleware/checkPermission');
 const { 
   User,
   findUserByUsername, 
@@ -87,8 +88,9 @@ userRouter.post(
   async (req, res) => {
     try {
       const errors = validationResult(req);
+
       if (!errors.isEmpty()) {
-        return res.status(400).json({ status: 'error', errors: errors.array() });
+        return res.status(400).json({ error: 'Validation failed', details: errors.array() });
       }
 
       const { username, password, fullName, email } = req.body;
@@ -103,32 +105,33 @@ userRouter.post(
         }
       });
       
+
       if (existingUser) {
-        return res.status(409).json({ 
-          status: 'error',
-          message: 'Username or email already in use'
-        });
+        return res.status(409).json({ error: 'Username or email already in use' });
       }
 
-      // Create new user with Sequelize
+
+      // Find the default 'user' role
+      const { Role } = require('../models');
+      const userRole = await Role.findOne({ where: { name: 'user' } });
+      if (!userRole) {
+        return res.status(500).json({ error: "Default user role not found. Please check roles table." });
+      }
+
+      // Create new user with default role
       await User.create({
         username,
         password, // WARNING: Storing plain text password (not secure!)
         full_name: fullName,
         email,
-        is_active: true
+        is_active: true,
+        role_id: userRole.id
       });
 
-      res.status(201).json({
-        status: 'success',
-        message: 'User registered successfully',
-      });
+      res.status(201).json({ message: 'User registered successfully' });
     } catch (error) {
       console.error('Registration error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Server error during registration',
-      });
+      res.status(500).json({ error: 'Server error during registration' });
     }
   }
 );
@@ -146,16 +149,23 @@ userRouter.post(
  *         description: User profile
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Permission denied
  */
-userRouter.get('/me', authenticate, async (req, res) => {
+userRouter.get('/me', authenticate, checkPermission('users', 'read'), async (req, res) => {
   try {
     const user = await findUserById(req.user.id);
     
     if (!user) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'User not found',
-      });
+      return res.status(404).json({ error: 'User not found' });
     }
 
     // Remove password from response
@@ -167,22 +177,13 @@ userRouter.get('/me', authenticate, async (req, res) => {
       id: userData.id,
       username: userData.username,
       email: userData.email,
-      fullName: userData.full_name,
-      isActive: userData.is_active,
-      createdAt: userData.created_at,
-      updatedAt: userData.updated_at
+      fullName: userData.full_name
     };
 
-    res.status(200).json({
-      status: 'success',
-      data: transformedData
-    });
+    res.status(200).json({ data: transformedData });
   } catch (error) {
     console.error('Profile error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error fetching profile',
-    });
+    res.status(500).json({ error: 'Server error fetching profile' });
   }
 });
 
@@ -280,28 +281,19 @@ sessionRouter.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ 
-          status: 'error', 
-          errors: errors.array() 
-        });
+        return res.status(400).json({ error: 'Validation failed', details: errors.array() });
       }
 
       const { username, password } = req.body;
 
       const user = await findUserByUsername(username);
       if (!user) {
-        return res.status(401).json({
-          status: 'error',
-          message: 'Invalid credentials',
-        });
+        return res.status(401).json({ error: 'Invalid credentials' });
       }
 
       // Simple password check (not secure!)
       if (user.password !== password) {
-        return res.status(401).json({
-          status: 'error',
-          message: 'Invalid credentials',
-        });
+        return res.status(401).json({ error: 'Invalid credentials' });
       }
 
       // Generate unique session ID
@@ -335,22 +327,13 @@ sessionRouter.post(
         }
       });
 
-      // Format user data to match the OpenAPI spec
+      // Only return the token with no status
       res.json({
-        status: 'success',
-        token,
-        user: {
-          id: user.id,
-          username: user.username,
-          fullName: user.full_name
-        }
+        token
       });
     } catch (error) {
       console.error('Login error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Server error during login',
-      });
+      res.status(500).json({ error: 'Server error during login' });
     }
   }
 );
@@ -364,16 +347,10 @@ sessionRouter.delete('/', authenticate, async (req, res) => {
       }
     });
     
-    res.json({
-      status: 'success',
-      message: 'Successfully logged out'
-    });
+    res.status(204).send();
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error during logout',
-    });
+    res.status(500).json({ error: 'Server error during logout' });
   }
 });
 

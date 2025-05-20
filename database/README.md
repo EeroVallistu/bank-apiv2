@@ -205,6 +205,16 @@ To set up the database:
 3. Run the setup script: `./setup.sh`
 4. Follow the prompts to create the database structure, stored procedures, and sample data
 
+Alternatively, you can use the npm/bun scripts as defined in package.json:
+
+```bash
+# Set up the database structure
+bun run db:setup
+
+# Add sample data (optional)
+bun run db:sample-data
+```
+
 ## Manual Database Setup
 
 If you prefer to set up the database without using the setup script, follow these steps:

@@ -32,7 +32,7 @@ const { userRoutes, sessionRoutes } = require('./routes/auth');
 const accountRoutes = require('./routes/accounts');
 const transactionRoutes = require('./routes/transactions');
 const b2bRoutes = require('./routes/b2b');
-const infoRoute = require('./routes/info');
+
 const currencyRoutes = require('./routes/currency');
 
 // Create express app
@@ -160,14 +160,6 @@ const swaggerDocument = YAML.load(path.join(__dirname, './openapi.yaml'));
 // Swagger API docs setup
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    message: 'API is operational',
-    timestamp: new Date().toISOString()
-  });
-});
 
 // Routes
 app.use('/users', userRoutes);
@@ -175,7 +167,7 @@ app.use('/sessions', sessionRoutes);
 app.use('/accounts', accountRoutes);
 app.use('/transfers', transactionRoutes);
 app.use('/transactions', b2bRoutes);
-app.use('/bank-info', infoRoute);
+
 app.use('/', currencyRoutes);
 
 // JWKS endpoint for verifying digital signatures
@@ -186,10 +178,7 @@ app.get('/jwks.json', (req, res) => {
     res.status(200).json(jwks);
   } catch (error) {
     console.error('Error serving JWKS:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to retrieve JWKS'
-    });
+    res.status(500).json({ error: 'Failed to retrieve JWKS' });
   }
 });
 
@@ -203,25 +192,18 @@ app.post('/admin/sync-settings', async (req, res) => {
     const changed = await syncSettingsFromEnv();
     
     res.status(200).json({
-      status: 'success',
       message: changed ? 'Settings updated from environment' : 'No changes needed',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Error syncing settings:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Failed to sync settings'
-    });
+    res.status(500).json({ error: 'Failed to sync settings' });
   }
 });
 
 // 404 handler for undefined routes
 app.use((req, res) => {
-  res.status(404).json({
-    status: 'error',
-    message: 'Endpoint not found'
-  });
+  res.status(404).json({ error: 'Endpoint not found' });
 });
 
 // Error handler middleware (should be last)
@@ -241,9 +223,11 @@ async function initializeApp() {
         process.exit(1);
       }
       
-      // Only sync models structure, do NOT force recreation of tables
+      // Sync models with database - only use alter in development mode
       console.log('Syncing database models...');
-      await sequelize.sync({ alter: false }); // Changed from alter: true to prevent modifying tables
+      const shouldAlter = process.env.NODE_ENV === 'development';
+      await sequelize.sync({ alter: shouldAlter }); 
+      console.log(`Database sync complete (alter: ${shouldAlter})`);
       
       // Update bank prefix in database to match .env file
       console.log('Checking bank prefix...');
@@ -252,13 +236,6 @@ async function initializeApp() {
     
     // Setup .env file watcher to detect changes while app is running
     setupEnvWatcher();
-    
-    // Sync all models with the database
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Syncing database models...');
-      await sequelize.sync({ alter: true });
-      console.log('Database sync complete');
-    }
     
     // Start scheduler for background tasks if available
     if (scheduler && typeof scheduler.start === 'function' && process.env.USE_SCHEDULER !== 'false') {
@@ -269,7 +246,6 @@ async function initializeApp() {
     startServer();
   } catch (error) {
     console.error('Application initialization error:', error);
-    console.log('Using in-memory data store as fallback.');
     startServer();
   }
 }

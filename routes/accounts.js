@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const { authenticate } = require('../middleware/auth');
+const { checkPermission } = require('../middleware/checkPermission');
 const { 
   Account,
   User,
@@ -70,8 +71,18 @@ router.use(authenticate);
  *         description: List of user accounts
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Permission denied
  */
-router.get('/', async (req, res) => {
+router.get('/', checkPermission('accounts', 'read'), async (req, res) => {
   try {
     const userId = req.user.id;
     
@@ -84,20 +95,13 @@ router.get('/', async (req, res) => {
       userId: account.user_id,
       balance: parseFloat(account.balance),
       currency: account.currency,
-      name: account.name,
-      created_at: account.created_at
+      name: account.name
     }));
 
-    res.status(200).json({
-      status: 'success',
-      data: formattedAccounts
-    });
+    res.status(200).json({ data: formattedAccounts });
   } catch (error) {
     console.error('Get accounts error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error fetching accounts'
-    });
+    res.status(500).json({ error: 'Server error fetching accounts' });
   }
 });
 
@@ -135,9 +139,20 @@ router.get('/', async (req, res) => {
  *         description: Validation error
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Permission denied
  */
 router.post(
   '/',
+  checkPermission('accounts', 'create'),
   [
     body('name')
       .isString()
@@ -152,10 +167,7 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({
-          status: 'error',
-          errors: errors.array()
-        });
+        return res.status(400).json({ error: 'Validation failed' });
       }
       
       const { name, currency } = req.body;
@@ -175,24 +187,18 @@ router.post(
       });
 
       res.status(201).json({
-        status: 'success',
-        message: 'Account created successfully',
         data: {
-          id: newAccount.id,
-          accountNumber: newAccount.account_number,
-          userId: newAccount.user_id,
-          balance: parseFloat(newAccount.balance),
-          currency: newAccount.currency,
           name: newAccount.name,
-          created_at: newAccount.created_at
+          currency: newAccount.currency,
+          balance: parseFloat(newAccount.balance),
+          accountNumber: newAccount.account_number,
+          id: newAccount.id,
+          userId: newAccount.user_id
         }
       });
     } catch (error) {
       console.error('Create account error:', error);
-      res.status(500).json({
-        status: 'error',
-        message: 'Server error creating account'
-      });
+      res.status(500).json({ error: 'Server error creating account' });
     }
   }
 );
@@ -216,10 +222,20 @@ router.post(
  *         description: Account details
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Permission denied
  *       404:
  *         description: Account not found
  */
-router.get('/:accountNumber', async (req, res) => {
+router.get('/:accountNumber', checkPermission('accounts', 'read'), async (req, res) => {
   try {
     const { accountNumber } = req.params;
     const userId = req.user.id;
@@ -228,22 +244,15 @@ router.get('/:accountNumber', async (req, res) => {
     const account = await findAccountByNumber(accountNumber);
     
     if (!account) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Account not found'
-      });
+      return res.status(404).json({ error: 'Account not found' });
     }
     
     // Verify account belongs to user
     if (account.user_id !== userId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'You do not have permission to access this account'
-      });
+      return res.status(403).json({ error: 'You do not have permission to access this account' });
     }
 
     res.status(200).json({
-      status: 'success',
       data: {
         id: account.id,
         accountNumber: account.account_number,
@@ -256,10 +265,7 @@ router.get('/:accountNumber', async (req, res) => {
     });
   } catch (error) {
     console.error('Get account error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Server error fetching account'
-    });
+    res.status(500).json({ error: 'Server error fetching account' });
   }
 });
 
