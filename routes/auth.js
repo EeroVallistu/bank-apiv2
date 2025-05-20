@@ -1,6 +1,16 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
+const xss = require('xss');
+
+// Configure XSS with NO allowlist for user data
+const xssOptions = {
+  whiteList: {}, // Empty whitelist means NO tags allowed
+  stripIgnoreTag: false, // Don't strip tags - encode them as HTML entities instead
+  escapeHtmlTag: true, // Encode < and > as &lt; and &gt;
+  stripIgnoreTagBody: ['script', 'style', 'iframe', 'object']
+};
+const strictXss = new xss.FilterXSS(xssOptions);
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
 const { 
@@ -61,6 +71,8 @@ const sessionRouter = express.Router();
  *                   type: string
  *                   example: User registered successfully
  */
+
+
 userRouter.post(
   '/',
   [
@@ -118,12 +130,17 @@ userRouter.post(
         return res.status(500).json({ error: "Default user role not found. Please check roles table." });
       }
 
-      // Create new user with default role
+      // Sanitize inputs with strict XSS filter to prevent any HTML tags
+      const sanitizedUsername = strictXss.process(username);
+      const sanitizedFullName = strictXss.process(fullName);
+      const sanitizedEmail = strictXss.process(email);
+      
+      // Create new user with sanitized data
       await User.create({
-        username,
+        username: sanitizedUsername,
         password, // WARNING: Storing plain text password (not secure!)
-        full_name: fullName,
-        email,
+        full_name: sanitizedFullName,
+        email: sanitizedEmail,
         is_active: true,
         role_id: userRole.id
       });
