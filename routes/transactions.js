@@ -173,7 +173,7 @@ router.get('/:id', async (req, res) => {
  * @swagger
  * /transfers:
  *   post:
- *     summary: Create a new transfer (internal or external)
+ *     summary: Create a new transfer
  *     tags: [Transactions]
  *     security:
  *       - bearerAuth: []
