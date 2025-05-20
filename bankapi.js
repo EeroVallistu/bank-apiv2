@@ -132,6 +132,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// XSS Protection
+const xssProtection = require('./middleware/xssProtection');
+app.use(xssProtection.sanitizeAll);
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -243,7 +247,11 @@ function startServer() {
   });
 }
 
-// Start the application
-initializeApp();
+// Don't automatically start the application when testing
+if (process.env.NODE_ENV !== 'test') {
+  initializeApp();
+}
 
+// Export the app and scheduler for testing purposes
+app.scheduler = scheduler;
 module.exports = app;
