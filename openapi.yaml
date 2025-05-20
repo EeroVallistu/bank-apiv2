@@ -399,7 +399,7 @@ paths:
           $ref: '#/components/responses/PermissionDeniedError'
           
     post:
-      summary: Create a new transaction (internal or external)
+      summary: Create a new transaction
       tags: [Transactions]
       requestBody:
         required: true

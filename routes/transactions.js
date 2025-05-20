@@ -22,12 +22,22 @@ const currencyService = require('../services/currencyService');
 
 const router = express.Router();
 
-// All routes require authentication except specific endpoints
+// Skip authentication for incoming B2B transfers
+router.use('/incoming', (req, res, next) => {
+  next();
+});
+
+// Explicitly handle removed endpoints to return 404
+router.use('/internal', (req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+router.use('/external', (req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+// Apply authentication to all other routes
 router.use((req, res, next) => {
-  if (req.path === '/incoming') {
-    // Skip authentication for incoming B2B transfers
-    return next();
-  }
   authenticate(req, res, next);
 });
 
@@ -156,139 +166,14 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /transfers/internal:
- *   post:
- *     summary: Create a new internal transaction
- *     tags: [Transactions]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - fromAccount
- *               - toAccount
- *               - amount
- *               - explanation
- *             properties:
- *               fromAccount:
- *                 type: string
- *               toAccount:
- *                 type: string
- *               amount:
- *                 type: number
- *               explanation:
- *                 type: string
- *     responses:
- *       201:
- *         description: Transaction created successfully
- *       400:
- *         description: Validation error
- *       402:
- *         description: Insufficient funds
- *       404:
- *         description: Account not found
- */
-router.post(
-  '/internal',
-  authenticate,
-  checkPermission('transactions', 'create'),
-  [
-    body('fromAccount').notEmpty().withMessage('Source account is required'),
-    body('toAccount').notEmpty().withMessage('Destination account is required'),
-    body('amount').isFloat({ gt: 0 }).withMessage('Amount must be greater than 0'),
-    body('explanation').notEmpty().withMessage('Explanation is required'),
-  ],
-  async (req, res) => {
-    try {
-      // Validate input
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ error: 'Validation failed', details: errors.array() });
-      }
-
-      return processInternalTransfer(req, res);
-    } catch (error) {
-      console.error('Error creating transaction:', error);
-      res.status(500).json({ error: 'Error creating transaction' });
-    }
-  }
-);
-
-/**
- * @swagger
- * /transfers/external:
- *   post:
- *     summary: Create a new external transaction
- *     tags: [Transactions]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - fromAccount
- *               - toAccount
- *               - amount
- *               - explanation
- *             properties:
- *               fromAccount:
- *                 type: string
- *               toAccount:
- *                 type: string
- *               amount:
- *                 type: number
- *               explanation:
- *                 type: string
- *     responses:
- *       201:
- *         description: Transaction created successfully
- *       400:
- *         description: Validation error
- *       402:
- *         description: Insufficient funds
- *       404:
- *         description: Account not found
- */
-router.post(
-  '/external',
-  authenticate,
-  checkPermission('transactions', 'create'),
-  [
-    body('fromAccount').notEmpty().withMessage('Source account is required'),
-    body('toAccount').notEmpty().withMessage('Destination account is required'),
-    body('amount').isFloat({ gt: 0 }).withMessage('Amount must be greater than 0'),
-    body('explanation').notEmpty().withMessage('Explanation is required'),
-  ],
-  async (req, res) => {
-    try {
-      // Validate input
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ error: 'Validation failed', details: errors.array() });
-      }
-
-      return processExternalTransfer(req, res);
-    } catch (error) {
-      console.error('Error creating external transaction:', error);
-      res.status(500).json({ error: 'Error creating external transaction' });
-    }
-  }
-);
+// Internal and external transfer endpoints have been completely removed
+// Only the unified endpoint at '/' handles transfers now
 
 /**
  * @swagger
  * /transfers:
  *   post:
- *     summary: Create a new transfer (internal or external)
+ *     summary: Create a new transfer
  *     tags: [Transactions]
  *     security:
  *       - bearerAuth: []
@@ -471,9 +356,7 @@ const processExternalTransfer = async (req, res) => {
     
     // Check if this is actually an external transaction
     const ourBankPrefix = await centralBankService.getOurBankPrefix();
-    if (bankPrefix === ourBankPrefix) {
-      return res.status(400).json({ error: 'For internal transfers please use /internal endpoint' });
-    }
+    // We no longer reject internal transfers in this handler since the unified endpoint uses it
 
     // Find source account owner for the sender name
     const sourceUser = await findUserById(sourceAccount.user_id);

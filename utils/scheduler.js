@@ -9,6 +9,7 @@ class Scheduler {
   constructor() {
     this.tasks = {};
     this.running = false;
+    this.initialCheckTimeout = null;
   }
 
   /**
@@ -89,7 +90,7 @@ class Scheduler {
     
     // Run immediate bank registration check on startup
     console.log('Running initial bank registration check...');
-    setTimeout(() => {
+    this.initialCheckTimeout = setTimeout(() => {
       this.checkBankRegistration().catch(error => {
         console.error('Error during initial bank registration check:', error);
       });
@@ -104,9 +105,18 @@ class Scheduler {
    */
   stop() {
     console.log('Stopping scheduler...');
+    
+    // Clear all scheduled tasks
     Object.keys(this.tasks).forEach(name => {
       this.removeTask(name);
     });
+    
+    // Clear initial registration check timeout if it exists
+    if (this.initialCheckTimeout) {
+      clearTimeout(this.initialCheckTimeout);
+      this.initialCheckTimeout = null;
+    }
+    
     this.running = false;
     console.log('Scheduler stopped');
   }
@@ -165,7 +175,7 @@ class Scheduler {
         
         // Force an account number update after re-registration
         console.log('Verifying account numbers after re-registration...');
-        await centralBankService.updateOutdatedAccounts(result.bankPrefix || process.env.BANK_PREFIX);
+        await centralBankService.updateOutdatedAccounts(result.bankPrefix || await centralBankService.getOurBankPrefix());
       }
     } catch (error) {
       console.error('Error checking bank registration:', error);
