@@ -49,6 +49,18 @@ When a user attempts to perform an action they don't have permission for, the AP
 
 This follows the application's standard error format, keeping responses consistent across the API.
 
+## Permission Checking
+
+Permissions are checked using the `checkPermission` middleware, which can be applied to any route:
+
+```javascript
+const { checkPermission } = require('../middleware/checkPermission');
+
+router.post('/accounts', checkPermission('accounts', 'create'), createAccountController);
+```
+
+The middleware validates that the authenticated user has the required permission before allowing the request to proceed.
+
 ## Default Role Permissions
 
 ### Admin
