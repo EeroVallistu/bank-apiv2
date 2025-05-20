@@ -22,19 +22,21 @@ This test sends XSS payloads to various endpoints and verifies the server proces
 
 ### 2. Manual Testing
 
-We've created a script that tests XSS payloads against various endpoints. It:
-- Tests unauthenticated endpoints
-- Logs in to get an auth token
-- Tests authenticated endpoints with XSS payloads
+You can manually test XSS protection through the Swagger UI or API client:
 
-To run the manual test:
+1. **Using Swagger UI**:
+   - Go to `/docs` in your browser
+   - Try entering XSS payloads into form fields
+   - Check responses to verify sanitization
 
-```bash
-# Start the server in one terminal
-bun run dev
+2. **Using cURL or Postman**:
+   - Send requests with XSS payloads in various fields
+   - Check for sanitized outputs in responses
 
-# In another terminal, run the test script
-node tests/manual/test-xss-simple.js
+Example XSS payloads to try:
+```
+<script>alert('XSS Test')</script>
+<img src=x onerror=alert('XSS')>
 ```
 
 ### 3. What to Look For
@@ -46,16 +48,19 @@ When checking if XSS protection is working:
 3. **Encoded Characters**: Look for `&lt;` and `&gt;` which indicate HTML encoding is working
 
 Example of sanitized XSS output:
-- Original payload: `<script>alert("XSS")</script>`
-- Sanitized result: `&lt;script&gt;alert("XSS")&lt;/script&gt;`
+- Original payload: `<script>alert('XSS')</script>`
+- Sanitized result: `&lt;script&gt;alert('XSS')&lt;/script&gt;`
+
+You can also check the database directly to see how XSS attempts are stored - they should be properly encoded.
 
 ## Verifying All Endpoints
 
-To thoroughly test your API, modify the test script to try different endpoints:
+To thoroughly test your API for XSS vulnerabilities:
 
-1. **Replace Credentials**: Update the login function with valid credentials
-2. **Add More Endpoints**: Test XSS protection on all critical endpoints
-3. **Check Responses**: Verify no raw XSS payloads appear in responses
+1. **Test All Input Fields**: Try XSS payloads in every user input field
+2. **Check Database**: Verify that stored data is properly sanitized
+3. **Test Authentication**: Pay special attention to login/registration fields
+4. **API Parameters**: Test all query parameters and path variables
 
 ## Security Best Practices
 
