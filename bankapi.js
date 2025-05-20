@@ -76,23 +76,7 @@ async function syncSettingsFromEnv() {
   try {
     const { Setting } = require('./models');
     
-    // Sync bank prefix from .env
-    if (process.env.BANK_PREFIX) {
-      const [setting] = await Setting.findOrCreate({
-        where: { name: 'bank_prefix' },
-        defaults: { 
-          value: process.env.BANK_PREFIX,
-          description: 'Bank prefix for account numbers'
-        }
-      });
-      
-      // If existing value is different from .env, update it
-      if (setting.value !== process.env.BANK_PREFIX) {
-        console.log(`Updating bank prefix from ${setting.value} to ${process.env.BANK_PREFIX}`);
-        await setting.update({ value: process.env.BANK_PREFIX });
-        return true; // Indicate that a change was made
-      }
-    }
+    // Bank prefix is no longer synced from .env - it comes from central bank instead
     
     // Sync bank name from .env
     if (process.env.BANK_NAME) {
@@ -106,6 +90,7 @@ async function syncSettingsFromEnv() {
       
       if (setting.value !== process.env.BANK_NAME) {
         await setting.update({ value: process.env.BANK_NAME });
+        return true; // Indicate that a change was made
       }
     }
     

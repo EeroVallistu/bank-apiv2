@@ -105,8 +105,8 @@ class CentralBankService {
       console.log('No existing registration found. Registering bank with central bank...');
       console.log('Registration data:', registrationData);
       
-      // Store the old bank prefix for later comparison
-      const oldBankPrefix = process.env.BANK_PREFIX;
+      // Get current bank prefix from database for comparison
+      const oldBankPrefix = await this.getOurBankPrefix(true);
       
       // Call the registration method
       const result = await this.registerBank(registrationData);
@@ -310,8 +310,11 @@ class CentralBankService {
       // Find the bank with matching prefix
       const bank = allBanks.find(bank => bank.bankPrefix === prefix);
       
+      // Get our bank prefix
+      const ourBankPrefix = await this.getOurBankPrefix();
+      
       // If this is our own bank prefix and it's not found, try to re-register
-      if (!bank && prefix === process.env.BANK_PREFIX) {
+      if (!bank && prefix === ourBankPrefix) {
         console.warn(`Our bank with prefix ${prefix} not found in central bank registry. Attempting to re-register...`);
         
         // Look for a bank with our name or transaction URL
@@ -346,7 +349,8 @@ class CentralBankService {
           
           // Retry the lookup after registration
           const refreshedBanks = await this.getAllBanks(true);
-          const refreshedBank = refreshedBanks.find(bank => bank.bankPrefix === process.env.BANK_PREFIX);
+          const ourBankPrefix = await this.getOurBankPrefix(true);
+          const refreshedBank = refreshedBanks.find(bank => bank.bankPrefix === ourBankPrefix);
           
           if (refreshedBank) {
             console.log(`Successfully re-registered and found our bank: ${refreshedBank.name} (${refreshedBank.bankPrefix})`);
@@ -402,13 +406,16 @@ class CentralBankService {
    * @returns {Object|null} Bank data or null if not found
    */
   async tryBankFallbacks(prefix) {
+    // Get our bank prefix
+    const ourBankPrefix = await this.getOurBankPrefix();
+    
     // Check if it's our own bank prefix
-    if (prefix === process.env.BANK_PREFIX) {
+    if (prefix === ourBankPrefix) {
       console.log('Request was for our own bank, returning our own details');
       return {
         id: 999,
         name: process.env.BANK_NAME || 'Our Bank',
-        bankPrefix: process.env.BANK_PREFIX,
+        bankPrefix: ourBankPrefix,
         owners: process.env.BANK_OWNERS || 'Bank Owner',
         jwksUrl: process.env.JWKS_URL,
         transactionUrl: process.env.TRANSACTION_URL

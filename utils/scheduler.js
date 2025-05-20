@@ -165,7 +165,7 @@ class Scheduler {
         
         // Force an account number update after re-registration
         console.log('Verifying account numbers after re-registration...');
-        await centralBankService.updateOutdatedAccounts(result.bankPrefix || process.env.BANK_PREFIX);
+        await centralBankService.updateOutdatedAccounts(result.bankPrefix || await centralBankService.getOurBankPrefix());
       }
     } catch (error) {
       console.error('Error checking bank registration:', error);
