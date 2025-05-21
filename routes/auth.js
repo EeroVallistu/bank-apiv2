@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const xss = require('xss');
+const { validatePassword } = require('../middleware/validators');
 
 // Configure XSS with NO allowlist for user data
 const xssOptions = {
@@ -81,10 +82,7 @@ userRouter.post(
       .trim()
       .isLength({ min: 3 })
       .withMessage('Username must be at least 3 characters'),
-    body('password')
-      .isString()
-      .isLength({ min: 6 })
-      .withMessage('Password must be at least 6 characters'),
+    validatePassword(),
     body('fullName')
       .isString()
       .trim()
@@ -292,7 +290,7 @@ sessionRouter.post(
   '/',
   [
     body('username').notEmpty().trim().withMessage('Username is required'),
-    body('password').notEmpty().withMessage('Password is required')
+    validatePassword()
   ],
   async (req, res) => {
     try {

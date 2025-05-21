@@ -1,5 +1,18 @@
 const { body, validationResult } = require('express-validator');
 
+// Password validation rules
+const validatePassword = () => {
+  return body('password')
+    .isString().withMessage('Password must be a string')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+    .custom(value => {
+      if (/^\s+$/.test(value)) {
+        throw new Error('Password cannot consist of only spaces');
+      }
+      return true;
+    });
+};
+
 // Transaction validation middleware
 const validateTransaction = [
   body('fromAccount').notEmpty().withMessage('Source account is required'),
@@ -19,5 +32,6 @@ const validateTransaction = [
 ];
 
 module.exports = {
-  validateTransaction
+  validateTransaction,
+  validatePassword
 };
