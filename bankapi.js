@@ -12,6 +12,10 @@ const fs = require('fs');
 // Import logger
 const { logger } = require('./utils/logger');
 
+// Import Redis configuration
+const redisConfig = require('./config/redis');
+const cacheService = require('./services/cacheService');
+
 // Import middleware
 const cache = require('./middleware/cache');
 const errorHandler = require('./middleware/errorHandler');
@@ -19,6 +23,16 @@ const errorHandler = require('./middleware/errorHandler');
 // Database connection
 const { sequelize, testConnection } = require('./models/database');
 const DatabaseSync = require('./utils/databaseSync');
+
+// Initialize Redis connection
+async function initializeRedis() {
+  try {
+    await redisConfig.connect();
+    logger.info('Redis initialization completed');
+  } catch (error) {
+    logger.warn('Redis initialization failed, continuing with memory cache:', error.message);
+  }
+}
 
 // Import scheduler if it exists
 let scheduler;
@@ -230,6 +244,12 @@ app.use(errorHandler);
 // Database connection and sync
 async function initializeApp() {
   try {
+    // Initialize Redis first
+    await initializeRedis();
+    
+    // Warm up cache with frequently accessed data
+    await cacheService.warmUp();
+    
     // Check if we should use database
     if (process.env.USE_DATABASE === 'true') {
       // Test database connection

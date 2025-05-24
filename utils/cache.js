@@ -1,24 +1,73 @@
+const redisConfig = require('../config/redis');
+const { logger } = require('./logger');
+
 /**
- * Simple memory cache for API responses
+ * Hybrid cache implementation with Redis fallback to memory
+ * Automatically falls back to memory cache if Redis is unavailable
  */
 class Cache {
   constructor(ttl = 300000) { // Default TTL: 5 minutes
-    this.cache = new Map();
     this.ttl = ttl;
+    this.memoryCache = new Map(); // Fallback memory cache
+    this.redis = null;
+    this.useRedis = false;
+    
+    // Initialize Redis connection
+    this._initializeRedis();
   }
 
   /**
-   * Get item from cache
+   * Initialize Redis connection
+   */
+  async _initializeRedis() {
+    try {
+      this.redis = redisConfig.getClient();
+      if (this.redis && redisConfig.isRedisConnected()) {
+        this.useRedis = true;
+        logger.info('Cache: Using Redis for caching');
+      } else {
+        logger.info('Cache: Using memory cache (Redis not available)');
+      }
+    } catch (error) {
+      logger.warn('Cache: Failed to initialize Redis, using memory cache:', error.message);
+      this.useRedis = false;
+    }
+  }
+
+  /**
+   * Check and update Redis availability
+   */
+  _checkRedisAvailability() {
+    this.useRedis = this.redis && redisConfig.isRedisConnected();
+  }
+
+  /**
+   * Get item from cache (Redis first, then memory fallback)
    * @param {string} key Cache key
    * @returns {*|null} Cached value or null if not found/expired
    */
-  get(key) {
-    const item = this.cache.get(key);
+  async get(key) {
+    this._checkRedisAvailability();
+
+    if (this.useRedis) {
+      try {
+        const value = await this.redis.get(key);
+        if (value) {
+          return JSON.parse(value);
+        }
+      } catch (error) {
+        logger.warn('Cache: Redis get failed, falling back to memory:', error.message);
+        this.useRedis = false;
+      }
+    }
+
+    // Fallback to memory cache
+    const item = this.memoryCache.get(key);
     if (!item) return null;
     
     // Check if expired
     if (item.expiry < Date.now()) {
-      this.cache.delete(key);
+      this.memoryCache.delete(key);
       return null;
     }
     
@@ -26,29 +75,84 @@ class Cache {
   }
 
   /**
-   * Set item in cache
+   * Set item in cache (Redis and memory)
    * @param {string} key Cache key
    * @param {*} value Value to cache
    * @param {number} ttl Custom TTL in milliseconds (optional)
    */
-  set(key, value, ttl) {
-    const expiry = Date.now() + (ttl || this.ttl);
-    this.cache.set(key, { value, expiry });
+  async set(key, value, ttl) {
+    const cacheTtl = ttl || this.ttl;
+    this._checkRedisAvailability();
+
+    if (this.useRedis) {
+      try {
+        await this.redis.setex(key, Math.ceil(cacheTtl / 1000), JSON.stringify(value));
+      } catch (error) {
+        logger.warn('Cache: Redis set failed, using memory only:', error.message);
+        this.useRedis = false;
+      }
+    }
+
+    // Always maintain memory cache as backup
+    const expiry = Date.now() + cacheTtl;
+    this.memoryCache.set(key, { value, expiry });
   }
 
   /**
-   * Delete item from cache
+   * Delete item from cache (Redis and memory)
    * @param {string} key Cache key
    */
-  delete(key) {
-    this.cache.delete(key);
+  async delete(key) {
+    this._checkRedisAvailability();
+
+    if (this.useRedis) {
+      try {
+        await this.redis.del(key);
+      } catch (error) {
+        logger.warn('Cache: Redis delete failed:', error.message);
+      }
+    }
+
+    this.memoryCache.delete(key);
   }
 
   /**
-   * Clear all cache
+   * Clear all cache (Redis and memory)
    */
-  clear() {
-    this.cache.clear();
+  async clear() {
+    this._checkRedisAvailability();
+
+    if (this.useRedis) {
+      try {
+        await this.redis.flushdb();
+      } catch (error) {
+        logger.warn('Cache: Redis clear failed:', error.message);
+      }
+    }
+
+    this.memoryCache.clear();
+  }
+
+  /**
+   * Get cache statistics
+   */
+  async getStats() {
+    const stats = {
+      useRedis: this.useRedis,
+      memorySize: this.memoryCache.size,
+      redisConnected: redisConfig.isRedisConnected()
+    };
+
+    if (this.useRedis) {
+      try {
+        const info = await this.redis.info('memory');
+        stats.redisMemory = info;
+      } catch (error) {
+        stats.redisError = error.message;
+      }
+    }
+
+    return stats;
   }
 }
 

@@ -1,8 +1,8 @@
-const Cache = require('../utils/cache');
+const cacheService = require('./cacheService');
+const { logger } = require('../utils/logger');
 
 class CurrencyService {
   constructor() {
-    this.exchangeRateCache = new Cache(300000); // 5 minutes cache
     this.supportedCurrencies = ['EUR', 'USD', 'GBP', 'SEK'];
     
     // Fallback static rates (in case API is unavailable)
@@ -27,10 +27,10 @@ class CurrencyService {
         return 1;
       }
 
-      // Check cache first
-      const cacheKey = `${fromCurrency}-${toCurrency}`;
-      const cachedRate = this.exchangeRateCache.get(cacheKey);
+      // Check Redis cache first
+      const cachedRate = await cacheService.getExchangeRate(fromCurrency, toCurrency);
       if (cachedRate !== null) {
+        logger.debug(`Exchange rate cache hit: ${fromCurrency}/${toCurrency} = ${cachedRate}`);
         return cachedRate;
       }
 
@@ -50,12 +50,13 @@ class CurrencyService {
         throw new Error(`No rate found for ${fromCurrency} to ${toCurrency}`);
       }
 
-      // Cache the rate
-      this.exchangeRateCache.set(cacheKey, rate);
+      // Cache the rate in Redis
+      await cacheService.cacheExchangeRate(fromCurrency, toCurrency, rate);
+      logger.debug(`Cached exchange rate: ${fromCurrency}/${toCurrency} = ${rate}`);
       return rate;
 
     } catch (error) {
-      console.warn('Exchange rate API error, using fallback rates:', error.message);
+      logger.warn('Exchange rate API error, using fallback rates:', error.message);
       return this.getFallbackRate(fromCurrency, toCurrency);
     }
   }

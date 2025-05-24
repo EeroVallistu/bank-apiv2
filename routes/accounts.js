@@ -2,6 +2,7 @@ const express = require('express');
 const { body, query, validationResult } = require('express-validator');
 const { authenticate } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/checkPermission');
+const cacheService = require('../services/cacheService');
 const { 
   Account,
   User,
@@ -86,6 +87,12 @@ router.get('/', checkPermission('accounts', 'read'), async (req, res) => {
   try {
     const userId = req.user.id;
     
+    // Check cache first
+    const cachedAccounts = await cacheService.getUserAccounts(userId);
+    if (cachedAccounts) {
+      return res.status(200).json({ data: cachedAccounts });
+    }
+    
     // Get accounts from database
     const accounts = await findAccountsByUserId(userId);
     
@@ -97,6 +104,9 @@ router.get('/', checkPermission('accounts', 'read'), async (req, res) => {
       currency: account.currency,
       name: account.name
     }));
+
+    // Cache the result
+    await cacheService.cacheUserAccounts(userId, formattedAccounts);
 
     res.status(200).json({ data: formattedAccounts });
   } catch (error) {
@@ -186,6 +196,9 @@ router.post(
         is_active: true
       });
 
+      // Invalidate user accounts cache since we added a new account
+      await cacheService.invalidateUserAccounts(userId);
+
       res.status(201).json({
         data: {
           name: newAccount.name,
@@ -240,6 +253,12 @@ router.get('/:accountNumber', checkPermission('accounts', 'read'), async (req, r
     const { accountNumber } = req.params;
     const userId = req.user.id;
     
+    // Check cache first
+    const cachedAccount = await cacheService.getAccount(accountNumber);
+    if (cachedAccount && cachedAccount.userId === userId) {
+      return res.status(200).json({ data: cachedAccount });
+    }
+    
     // Find account in database
     const account = await findAccountByNumber(accountNumber);
     
@@ -252,17 +271,20 @@ router.get('/:accountNumber', checkPermission('accounts', 'read'), async (req, r
       return res.status(403).json({ error: 'You do not have permission to access this account' });
     }
 
-    res.status(200).json({
-      data: {
-        id: account.id,
-        accountNumber: account.account_number,
-        userId: account.user_id,
-        balance: parseFloat(account.balance),
-        currency: account.currency,
-        name: account.name,
-        created_at: account.created_at
-      }
-    });
+    const accountData = {
+      id: account.id,
+      accountNumber: account.account_number,
+      userId: account.user_id,
+      balance: parseFloat(account.balance),
+      currency: account.currency,
+      name: account.name,
+      created_at: account.created_at
+    };
+
+    // Cache the account data
+    await cacheService.cacheAccount(accountNumber, accountData);
+
+    res.status(200).json({ data: accountData });
   } catch (error) {
     console.error('Get account error:', error);
     res.status(500).json({ error: 'Server error fetching account' });

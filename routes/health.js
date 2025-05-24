@@ -1,5 +1,7 @@
 const express = require('express');
 const { testConnection } = require('../models/database');
+const redisConfig = require('../config/redis');
+const cacheService = require('../services/cacheService');
 const router = express.Router();
 
 /**
@@ -53,6 +55,21 @@ router.get('/health/detailed', async (req, res) => {
     environment: process.env.NODE_ENV || 'development'
   };
 
+  // Redis connectivity check
+  try {
+    const redisHealth = await redisConfig.healthCheck();
+    health.checks.redis = redisHealth;
+    if (redisHealth.status === 'unhealthy') {
+      health.status = 'unhealthy';
+    }
+  } catch (error) {
+    health.checks.redis = { 
+      status: 'unhealthy', 
+      error: error.message 
+    };
+    health.status = 'unhealthy';
+  }
+
   const statusCode = health.status === 'healthy' ? 200 : 503;
   res.status(statusCode).json(health);
 });
@@ -70,6 +87,24 @@ router.get('/ready', async (req, res) => {
 // Liveness check (for Kubernetes)
 router.get('/live', (req, res) => {
   res.status(200).json({ status: 'alive' });
+});
+
+// Cache statistics endpoint
+router.get('/cache', async (req, res) => {
+  try {
+    const stats = await cacheService.getStats();
+    res.status(200).json({
+      status: 'success',
+      data: stats,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 module.exports = router;
