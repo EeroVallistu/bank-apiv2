@@ -1,14 +1,22 @@
 const { body, validationResult } = require('express-validator');
+const PasswordUtils = require('../utils/passwordUtils');
 
 // Password validation rules
 const validatePassword = () => {
   return body('password')
     .isString().withMessage('Password must be a string')
-    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
     .custom(value => {
       if (/^\s+$/.test(value)) {
         throw new Error('Password cannot consist of only spaces');
       }
+      
+      // Use PasswordUtils for comprehensive validation
+      const validation = PasswordUtils.validatePasswordStrength(value);
+      if (!validation.isValid) {
+        throw new Error(validation.errors.join(', '));
+      }
+      
       return true;
     });
 };

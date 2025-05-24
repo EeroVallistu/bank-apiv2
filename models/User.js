@@ -1,6 +1,7 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('./database');
 const xss = require('xss');
+const PasswordUtils = require('../utils/passwordUtils');
 
 // Configure strict XSS for user data with NO allowlist
 const xssOptions = {
@@ -51,17 +52,27 @@ const User = sequelize.define('User', {
   tableName: 'users',
   timestamps: true,
   hooks: {
-    beforeCreate: (user) => {
+    beforeCreate: async (user) => {
       // Sanitize user fields to prevent XSS using strict configuration (NO tags)
       if (user.username) user.username = strictXss.process(user.username);
       if (user.full_name) user.full_name = strictXss.process(user.full_name);
       if (user.email) user.email = strictXss.process(user.email);
+      
+      // Hash password if it's being set and isn't already hashed
+      if (user.password && !user.password.startsWith('$2b$')) {
+        user.password = await PasswordUtils.hashPassword(user.password);
+      }
     },
-    beforeUpdate: (user) => {
+    beforeUpdate: async (user) => {
       // Sanitize user fields when updating
       if (user.changed('username')) user.username = strictXss.process(user.username);
       if (user.changed('full_name')) user.full_name = strictXss.process(user.full_name);
       if (user.changed('email')) user.email = strictXss.process(user.email);
+      
+      // Hash password if it's being changed and isn't already hashed
+      if (user.changed('password') && user.password && !user.password.startsWith('$2b$')) {
+        user.password = await PasswordUtils.hashPassword(user.password);
+      }
     }
   }
 });
@@ -76,6 +87,11 @@ User.sanitizeFields = function(userData) {
   if (sanitized.email) sanitized.email = strictXss.process(sanitized.email);
   
   return sanitized;
+};
+
+// Static method to verify password
+User.verifyPassword = async function(plainPassword, hashedPassword) {
+  return await PasswordUtils.verifyPassword(plainPassword, hashedPassword);
 };
 
 module.exports = User; 
