@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const xss = require('xss');
 const { validatePassword } = require('../middleware/validators');
+const PasswordUtils = require('../utils/passwordUtils');
 
 // Configure XSS with NO allowlist for user data
 const xssOptions = {
@@ -133,10 +134,13 @@ userRouter.post(
       const sanitizedFullName = strictXss.process(fullName);
       const sanitizedEmail = strictXss.process(email);
       
-      // Create new user with sanitized data
+      // Hash the password securely
+      const hashedPassword = await PasswordUtils.hashPassword(password);
+      
+      // Create new user with sanitized data and hashed password
       await User.create({
         username: sanitizedUsername,
-        password, // WARNING: Storing plain text password (not secure!)
+        password: hashedPassword,
         full_name: sanitizedFullName,
         email: sanitizedEmail,
         is_active: true,
@@ -306,8 +310,9 @@ sessionRouter.post(
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      // Simple password check (not secure!)
-      if (user.password !== password) {
+      // Verify password using bcrypt
+      const isValidPassword = await PasswordUtils.verifyPassword(password, user.password);
+      if (!isValidPassword) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
