@@ -17,16 +17,23 @@ class RedisConfig {
     try {
       const redisConfig = {
         host: process.env.REDIS_HOST || 'localhost',
-        port: process.env.REDIS_PORT || 6379,
+        port: parseInt(process.env.REDIS_PORT) || 6379,
         password: process.env.REDIS_PASSWORD || undefined,
-        db: process.env.REDIS_DB || 0,
+        db: parseInt(process.env.REDIS_DB) || 0,
         retryDelayOnFailover: 100,
         maxRetriesPerRequest: 3,
-        lazyConnect: true,
+        lazyConnect: false, // Changed to false for immediate connection
         keepAlive: 30000,
         connectTimeout: 10000,
         commandTimeout: 5000,
+        // Add connection retry options
+        retryStrategyOnFailure: (times) => Math.min(times * 50, 2000),
+        enableReadyCheck: true,
+        maxLoadingTimeout: 15000,
       };
+
+      // Log connection attempt
+      logger.info(`Redis: Attempting to connect to ${redisConfig.host}:${redisConfig.port}`);
 
       this.client = new Redis(redisConfig);
 
@@ -38,10 +45,11 @@ class RedisConfig {
 
       this.client.on('ready', () => {
         logger.info('Redis: Connection ready');
+        this.isConnected = true;
       });
 
       this.client.on('error', (error) => {
-        logger.error('Redis connection error:', error);
+        logger.error('Redis connection error:', error.message);
         this.isConnected = false;
       });
 
@@ -50,21 +58,40 @@ class RedisConfig {
         this.isConnected = false;
       });
 
-      this.client.on('reconnecting', () => {
-        logger.info('Redis: Reconnecting...');
+      this.client.on('reconnecting', (time) => {
+        logger.info(`Redis: Reconnecting in ${time}ms...`);
       });
 
-      // Test the connection
-      await this.client.connect();
+      // Wait for connection to be ready
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Redis connection timeout'));
+        }, 15000);
+
+        this.client.once('ready', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+
+        this.client.once('error', (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+      });
+
+      // Test the connection with ping
       await this.client.ping();
       
       logger.info('Redis: Successfully connected and tested');
       return this.client;
 
     } catch (error) {
-      logger.error('Redis: Failed to connect:', error);
-      // Fallback to memory cache if Redis is not available
-      this.client = null;
+      logger.error('Redis: Failed to connect:', error.message);
+      // Clean up client on failure
+      if (this.client) {
+        this.client.disconnect();
+        this.client = null;
+      }
       this.isConnected = false;
       return null;
     }

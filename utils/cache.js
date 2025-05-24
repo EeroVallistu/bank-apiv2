@@ -11,9 +11,10 @@ class Cache {
     this.memoryCache = new Map(); // Fallback memory cache
     this.redis = null;
     this.useRedis = false;
+    this.initPromise = null;
     
-    // Initialize Redis connection
-    this._initializeRedis();
+    // Start Redis initialization but don't wait for it
+    this.initPromise = this._initializeRedis();
   }
 
   /**
@@ -21,6 +22,9 @@ class Cache {
    */
   async _initializeRedis() {
     try {
+      // Give Redis time to connect (it's initialized in bankapi.js)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       this.redis = redisConfig.getClient();
       if (this.redis && redisConfig.isRedisConnected()) {
         this.useRedis = true;
@@ -31,6 +35,16 @@ class Cache {
     } catch (error) {
       logger.warn('Cache: Failed to initialize Redis, using memory cache:', error.message);
       this.useRedis = false;
+    }
+  }
+
+  /**
+   * Ensure Redis is initialized before operations
+   */
+  async _ensureInitialized() {
+    if (this.initPromise) {
+      await this.initPromise;
+      this.initPromise = null; // Only initialize once
     }
   }
 
@@ -47,6 +61,7 @@ class Cache {
    * @returns {*|null} Cached value or null if not found/expired
    */
   async get(key) {
+    await this._ensureInitialized();
     this._checkRedisAvailability();
 
     if (this.useRedis) {
@@ -81,6 +96,7 @@ class Cache {
    * @param {number} ttl Custom TTL in milliseconds (optional)
    */
   async set(key, value, ttl) {
+    await this._ensureInitialized();
     const cacheTtl = ttl || this.ttl;
     this._checkRedisAvailability();
 
@@ -103,6 +119,7 @@ class Cache {
    * @param {string} key Cache key
    */
   async delete(key) {
+    await this._ensureInitialized();
     this._checkRedisAvailability();
 
     if (this.useRedis) {
@@ -120,6 +137,7 @@ class Cache {
    * Clear all cache (Redis and memory)
    */
   async clear() {
+    await this._ensureInitialized();
     this._checkRedisAvailability();
 
     if (this.useRedis) {
@@ -137,6 +155,9 @@ class Cache {
    * Get cache statistics
    */
   async getStats() {
+    await this._ensureInitialized();
+    this._checkRedisAvailability();
+    
     const stats = {
       useRedis: this.useRedis,
       memorySize: this.memoryCache.size,
