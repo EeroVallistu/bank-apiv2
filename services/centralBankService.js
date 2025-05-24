@@ -2,6 +2,7 @@ const { fetch } = require('undici');
 const cache = require('../utils/cache');
 const fs = require('fs');
 const path = require('path');
+const { logger } = require('../utils/logger');
 
 /**
  * Service for interacting with the Central Bank API
@@ -51,14 +52,14 @@ class CentralBankService {
       }
 
       const registrationData = await response.json();
-      console.log('Bank registration successful:', registrationData);
+      logger.info('Bank registration successful:', { registrationData });
       
       // Clear cache after registration
       this.allBanksCache = null;
       
       return registrationData;
     } catch (error) {
-      console.error('Error registering bank:', error);
+      logger.error('Error registering bank:', { error: error.message, stack: error.stack });
       throw error;
     }
   }
@@ -72,7 +73,7 @@ class CentralBankService {
   async reRegisterBank(currentPrefix = null) {
     try {
       // Get all banks and check if our bank exists with any prefix
-      console.log('Checking if bank is already registered with any prefix...');
+      logger.info('Checking if bank is already registered with any prefix...');
       const allBanks = await this.getAllBanks(true);
       
       // Prepare registration data from environment variables
@@ -90,11 +91,11 @@ class CentralBankService {
       );
       
       if (existingBank) {
-        console.log(`Found existing bank registration: ${existingBank.name} (${existingBank.bankPrefix})`);
+        logger.info(`Found existing bank registration: ${existingBank.name} (${existingBank.bankPrefix})`);
         
         // Update account numbers if needed
         if (currentPrefix && currentPrefix !== existingBank.bankPrefix) {
-          console.log(`Updating account numbers from ${currentPrefix} to ${existingBank.bankPrefix}`);
+          logger.info(`Updating account numbers from ${currentPrefix} to ${existingBank.bankPrefix}`);
           await this.updateAllAccountNumbers(currentPrefix, existingBank.bankPrefix);
         }
         
@@ -102,8 +103,8 @@ class CentralBankService {
       }
       
       // If we reach here, no existing bank was found, so register new one
-      console.log('No existing registration found. Registering bank with central bank...');
-      console.log('Registration data:', registrationData);
+      logger.info('No existing registration found. Registering bank with central bank...');
+      logger.info('Registration data:', { registrationData });
       
       // Get current bank prefix from database for comparison
       const oldBankPrefix = await this.getOurBankPrefix(true);
@@ -111,21 +112,21 @@ class CentralBankService {
       // Call the registration method
       const result = await this.registerBank(registrationData);
       
-      console.log('Bank registration successful:', result);
+      logger.info('Bank registration successful:', { result });
       
       // Update all account numbers if the prefix has changed
       if (result.bankPrefix && result.bankPrefix !== oldBankPrefix && oldBankPrefix) {
-        console.log(`Bank prefix changed from ${oldBankPrefix} to ${result.bankPrefix}. Updating account numbers...`);
+        logger.info(`Bank prefix changed from ${oldBankPrefix} to ${result.bankPrefix}. Updating account numbers...`);
         await this.updateAllAccountNumbers(oldBankPrefix, result.bankPrefix);
       }
       
       return result;
     } catch (error) {
-      console.error('Error re-registering bank:', error);
+      logger.error('Error re-registering bank:', { error: error.message, stack: error.stack });
       
       // Try to recover by finding the existing bank
       try {
-        console.log('Attempting to recover by finding existing bank registration...');
+        logger.info('Attempting to recover by finding existing bank registration...');
         const allBanks = await this.getAllBanks(true);
         const registrationData = {
           jwksUrl: process.env.JWKS_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/jwks.json`,
@@ -138,11 +139,11 @@ class CentralBankService {
         );
         
         if (existingBank) {
-          console.log(`Found existing bank: ${existingBank.name} (${existingBank.bankPrefix})`);
+          logger.info(`Found existing bank: ${existingBank.name} (${existingBank.bankPrefix})`);
           return existingBank;
         }
       } catch (recoveryError) {
-        console.error('Recovery attempt failed:', recoveryError);
+        logger.error('Recovery attempt failed:', { error: recoveryError.message });
       }
       
       throw error;
@@ -168,7 +169,7 @@ class CentralBankService {
           transaction: t
         });
         
-        console.log(`Found ${accounts.length} accounts to update`);
+        logger.info(`Found ${accounts.length} accounts to update`);
         
         // Keep track of account number mapping for transaction updates
         const accountMapping = {};
@@ -186,7 +187,7 @@ class CentralBankService {
           account.account_number = newAccountNumber;
           await account.save({ transaction: t });
           
-          console.log(`Updated account ${oldAccountNumber} to ${newAccountNumber}`);
+          logger.info(`Updated account ${oldAccountNumber} to ${newAccountNumber}`);
         }
         
         let transactionsUpdated = 0;
@@ -219,13 +220,13 @@ class CentralBankService {
             transactionsUpdated += toUpdated[0];
           }
         } else {
-          console.log('No accounts found. No transactions need updating.');
+          logger.info('No accounts found. No transactions need updating.');
         }
         
         // Commit the transaction
         await t.commit();
         
-        console.log(`Updated ${accounts.length} accounts and ${transactionsUpdated} transaction references`);
+        logger.info(`Updated ${accounts.length} accounts and ${transactionsUpdated} transaction references`);
         
         return {
           accountsUpdated: accounts.length,
@@ -237,7 +238,7 @@ class CentralBankService {
         throw error;
       }
     } catch (error) {
-      console.error('Error updating account numbers:', error);
+      logger.error('Error updating account numbers:', { error: error.message, stack: error.stack });
       throw new Error(`Failed to update account numbers: ${error.message}`);
     }
   }
@@ -252,11 +253,11 @@ class CentralBankService {
       // Use cache if available and not forcing refresh
       if (!forceRefresh && this.allBanksCache && 
           (Date.now() - this.allBanksCacheTime < this.cacheTTL)) {
-        console.log('Using cached banks list');
+        logger.info('Using cached banks list');
         return this.allBanksCache;
       }
       
-      console.log('Fetching all banks from central bank API');
+      logger.info('Fetching all banks from central bank API');
       
       const response = await fetch(`${this.apiUrl}/banks`, {
         method: 'GET',
@@ -271,7 +272,7 @@ class CentralBankService {
       }
       
       const banks = await response.json();
-      console.log(`Retrieved ${banks.length} banks from central bank`);
+      logger.info(`Retrieved ${banks.length} banks from central bank`);
       
       // Cache the results
       this.allBanksCache = banks;
@@ -279,7 +280,7 @@ class CentralBankService {
       
       return banks;
     } catch (error) {
-      console.error('Error fetching all banks:', error);
+      logger.error('Error fetching all banks:', { error: error.message, stack: error.stack });
       throw error;
     }
   }
@@ -296,7 +297,7 @@ class CentralBankService {
       if (!forceRefresh && this.bankCache.has(prefix)) {
         const cached = this.bankCache.get(prefix);
         if (cached.timestamp > Date.now() - this.cacheTTL) {
-          console.log(`Using cached bank details for prefix ${prefix}`);
+          logger.info(`Using cached bank details for prefix ${prefix}`);
           return cached.data;
         }
         // Cache expired, remove it
@@ -304,7 +305,7 @@ class CentralBankService {
       }
 
       // Get all banks and find the one with matching prefix
-      console.log(`Looking up bank with prefix ${prefix}`);
+      logger.info(`Looking up bank with prefix ${prefix}`);
       const allBanks = await this.getAllBanks(forceRefresh);
       
       // Find the bank with matching prefix
@@ -315,7 +316,7 @@ class CentralBankService {
       
       // If this is our own bank prefix and it's not found, try to re-register
       if (!bank && prefix === ourBankPrefix) {
-        console.warn(`Our bank with prefix ${prefix} not found in central bank registry. Attempting to re-register...`);
+        logger.warn(`Our bank with prefix ${prefix} not found in central bank registry. Attempting to re-register...`);
         
         // Look for a bank with our name or transaction URL
         const ourBankName = process.env.BANK_NAME || 'Bank API';
@@ -327,10 +328,10 @@ class CentralBankService {
         );
         
         if (existingBank) {
-          console.log(`Found our bank with different prefix: ${existingBank.bankPrefix} instead of ${prefix}`);
+          logger.info(`Found our bank with different prefix: ${existingBank.bankPrefix} instead of ${prefix}`);
           // Update account numbers if needed
           if (prefix && prefix !== existingBank.bankPrefix) {
-            console.log(`Updating account numbers from ${prefix} to ${existingBank.bankPrefix}`);
+            logger.info(`Updating account numbers from ${prefix} to ${existingBank.bankPrefix}`);
             await this.updateAllAccountNumbers(prefix, existingBank.bankPrefix);
           }
           
@@ -353,7 +354,7 @@ class CentralBankService {
           const refreshedBank = refreshedBanks.find(bank => bank.bankPrefix === ourBankPrefix);
           
           if (refreshedBank) {
-            console.log(`Successfully re-registered and found our bank: ${refreshedBank.name} (${refreshedBank.bankPrefix})`);
+            logger.info(`Successfully re-registered and found our bank: ${refreshedBank.name} (${refreshedBank.bankPrefix})`);
             
             // Cache the result
             this.bankCache.set(refreshedBank.bankPrefix, {
@@ -364,12 +365,12 @@ class CentralBankService {
             return refreshedBank;
           }
         } catch (regError) {
-          console.error('Failed to re-register bank:', regError);
+          logger.error('Failed to re-register bank:', { error: regError.message });
         }
       }
       
       if (!bank) {
-        console.warn(`Bank with prefix ${prefix} not found in central bank registry`);
+        logger.warn(`Bank with prefix ${prefix} not found in central bank registry`);
         // Cache the negative result to avoid repeated calls
         this.bankCache.set(prefix, {
           data: null,
@@ -378,7 +379,7 @@ class CentralBankService {
         return null;
       }
       
-      console.log(`Found bank: ${bank.name} (${bank.bankPrefix})`);
+      logger.info(`Found bank: ${bank.name} (${bank.bankPrefix})`);
       
       // Cache the successful result
       this.bankCache.set(prefix, {
@@ -388,7 +389,7 @@ class CentralBankService {
       
       return bank;
     } catch (error) {
-      console.error(`Error fetching bank details for prefix ${prefix}:`, error);
+      logger.error(`Error fetching bank details for prefix ${prefix}:`, { error: error.message, stack: error.stack });
       
       // Try fallback methods
       const fallbackData = await this.tryBankFallbacks(prefix);
@@ -411,7 +412,7 @@ class CentralBankService {
     
     // Check if it's our own bank prefix
     if (prefix === ourBankPrefix) {
-      console.log('Request was for our own bank, returning our own details');
+      logger.info('Request was for our own bank, returning our own details');
       return {
         id: 999,
         name: process.env.BANK_NAME || 'Our Bank',
@@ -431,7 +432,7 @@ class CentralBankService {
    */
   async checkBankRegistration() {
     try {
-      console.log('Checking bank registration with central bank...');
+      logger.info('Checking bank registration with central bank...');
       
       // First, try to get our current bank prefix from database
       const { Setting } = require('../models');
@@ -442,7 +443,7 @@ class CentralBankService {
       const currentPrefix = prefixSetting ? prefixSetting.value : null;
       
       if (currentPrefix) {
-        console.log(`Checking if bank with prefix ${currentPrefix} exists`);
+        logger.info(`Checking if bank with prefix ${currentPrefix} exists`);
         
         // Get all banks from central bank
         const allBanks = await this.getAllBanks(true);
@@ -451,20 +452,20 @@ class CentralBankService {
         const bankWithPrefix = allBanks.find(bank => bank.bankPrefix === currentPrefix);
         
         if (bankWithPrefix) {
-          console.log(`Found our bank by prefix: ${bankWithPrefix.name} (${bankWithPrefix.bankPrefix})`);
+          logger.info(`Found our bank by prefix: ${bankWithPrefix.name} (${bankWithPrefix.bankPrefix})`);
           return true;
         }
         
-        console.log(`No bank found with prefix ${currentPrefix}, checking URLs...`);
+        logger.info(`No bank found with prefix ${currentPrefix}, checking URLs...`);
       } else {
-        console.log('No bank prefix found in database, checking URLs...');
+        logger.info('No bank prefix found in database, checking URLs...');
       }
       
       // If we couldn't find by prefix, check by URLs
       const jwksUrl = process.env.JWKS_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/jwks.json`;
       const transactionUrl = process.env.TRANSACTION_URL || `https://${process.env.HOSTNAME || 'bank.example.com'}/transactions/b2b`;
       
-      console.log(`Looking for bank with JWKS URL: ${jwksUrl} or transaction URL: ${transactionUrl}`);
+      logger.info(`Looking for bank with JWKS URL: ${jwksUrl} or transaction URL: ${transactionUrl}`);
       
       // Get all banks if we haven't already
       const allBanks = currentPrefix ? await this.getAllBanks(false) : await this.getAllBanks(true);
@@ -475,11 +476,11 @@ class CentralBankService {
       );
       
       if (ourBank) {
-        console.log(`Found our bank by URLs: ${ourBank.name} (${ourBank.bankPrefix})`);
+        logger.info(`Found our bank by URLs: ${ourBank.name} (${ourBank.bankPrefix})`);
         
         // Update our prefix in database if it's different
         if (currentPrefix !== ourBank.bankPrefix) {
-          console.log(`Bank prefix in database (${currentPrefix}) doesn't match central bank (${ourBank.bankPrefix}), updating...`);
+          logger.info(`Bank prefix in database (${currentPrefix}) doesn't match central bank (${ourBank.bankPrefix}), updating...`);
           
           // Update the database setting
           if (prefixSetting) {
@@ -499,10 +500,10 @@ class CentralBankService {
         return true;
       }
       
-      console.log('Our bank not found in central bank registry, registration required');
+      logger.info('Our bank not found in central bank registry, registration required');
       return false;
     } catch (error) {
-      console.error('Error checking bank registration:', error);
+      logger.error('Error checking bank registration:', { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -527,17 +528,17 @@ class CentralBankService {
       
       // Extract the prefixes
       const prefixes = accountPrefixes.map(row => row.prefix);
-      console.log('Found account prefixes in database:', prefixes);
+      logger.info('Found account prefixes in database:', { prefixes });
       
       // Update accounts with mismatched prefixes
       for (const prefix of prefixes) {
         if (prefix && prefix !== currentPrefix) {
-          console.log(`Found accounts with outdated prefix: ${prefix}, updating to ${currentPrefix}`);
+          logger.info(`Found accounts with outdated prefix: ${prefix}, updating to ${currentPrefix}`);
           await this.updateAllAccountNumbers(prefix, currentPrefix);
         }
       }
     } catch (error) {
-      console.error('Error checking for outdated account prefixes:', error);
+      logger.error('Error checking for outdated account prefixes:', { error: error.message, stack: error.stack });
     }
   }
 }

@@ -1,5 +1,6 @@
 const centralBankService = require('../services/centralBankService');
 const { Op } = require('sequelize');
+const { logger } = require('./logger');
 
 /**
  * Task scheduler for the bank API
@@ -23,18 +24,18 @@ class Scheduler {
       this.removeTask(name);
     }
     
-    console.log(`Adding scheduled task: ${name} (every ${interval}ms)`);
+    logger.info(`Adding scheduled task: ${name} (every ${interval}ms)`);
     this.tasks[name] = {
       fn: task,
       interval: interval,
       lastRun: null,
       timer: setInterval(() => {
         try {
-          console.log(`Running scheduled task: ${name}`);
+          logger.info(`Running scheduled task: ${name}`);
           task();
           this.tasks[name].lastRun = new Date();
         } catch (error) {
-          console.error(`Error in scheduled task ${name}:`, error);
+          logger.error(`Error in scheduled task ${name}:`, { error: error.message, stack: error.stack });
         }
       }, interval)
     };
@@ -48,7 +49,7 @@ class Scheduler {
     if (this.tasks[name]) {
       clearInterval(this.tasks[name].timer);
       delete this.tasks[name];
-      console.log(`Removed scheduled task: ${name}`);
+      logger.info(`Removed scheduled task: ${name}`);
     }
   }
 
@@ -58,7 +59,7 @@ class Scheduler {
   start() {
     if (this.running) return;
     
-    console.log('Starting scheduler...');
+    logger.info('Starting scheduler...');
     
     // Add default tasks
     
@@ -72,10 +73,10 @@ class Scheduler {
               expires_at: { [Op.lt]: new Date() }
             }
           });
-          console.log(`Cleaned ${result} expired sessions`);
+          logger.info(`Cleaned ${result} expired sessions`);
         }
       } catch (error) {
-        console.error('Error cleaning expired sessions:', error);
+        logger.error('Error cleaning expired sessions:', { error: error.message, stack: error.stack });
       }
     }, 60 * 60 * 1000);
     
@@ -84,27 +85,27 @@ class Scheduler {
       try {
         await this.checkBankRegistration();
       } catch (error) {
-        console.error('Error checking bank registration:', error);
+        logger.error('Error checking bank registration:', { error: error.message, stack: error.stack });
       }
     }, 5 * 60 * 1000);
     
     // Run immediate bank registration check on startup
-    console.log('Running initial bank registration check...');
+    logger.info('Running initial bank registration check...');
     this.initialCheckTimeout = setTimeout(() => {
       this.checkBankRegistration().catch(error => {
-        console.error('Error during initial bank registration check:', error);
+        logger.error('Error during initial bank registration check:', { error: error.message, stack: error.stack });
       });
     }, 2000); // Short delay to ensure database connection is established
     
     this.running = true;
-    console.log('Scheduler started');
+    logger.info('Scheduler started');
   }
 
   /**
    * Stops the scheduler and all tasks
    */
   stop() {
-    console.log('Stopping scheduler...');
+    logger.info('Stopping scheduler...');
     
     // Clear all scheduled tasks
     Object.keys(this.tasks).forEach(name => {
@@ -118,7 +119,7 @@ class Scheduler {
     }
     
     this.running = false;
-    console.log('Scheduler stopped');
+    logger.info('Scheduler stopped');
   }
 
   /**
@@ -132,14 +133,14 @@ class Scheduler {
         const DatabaseSync = require('./databaseSync');
         const dbPrefix = await DatabaseSync.getCurrentDatabasePrefix();
         if (dbPrefix) {
-          console.log('Retrieved bank prefix from database:', dbPrefix);
+          logger.info('Retrieved bank prefix from database:', { bankPrefix: dbPrefix });
           return dbPrefix;
         }
       }
       
       return null;
     } catch (error) {
-      console.error('Error getting bank prefix from database:', error.message);
+      logger.error('Error getting bank prefix from database:', { error: error.message, stack: error.stack });
       return null;
     }
   }
@@ -150,35 +151,35 @@ class Scheduler {
    */
   async checkBankRegistration() {
     try {
-      console.log('Checking bank registration status with central bank...');
+      logger.info('Checking bank registration status with central bank...');
       
       // Get bank prefix from database
       const bankPrefix = await this.getCurrentBankPrefix();
       
       // Skip if bank prefix is not set
       if (!bankPrefix) {
-        console.log('Bank prefix not found in database, skipping registration check');
+        logger.info('Bank prefix not found in database, skipping registration check');
         return;
       }
       
-      console.log(`Using bank prefix: ${bankPrefix}`);
+      logger.info(`Using bank prefix: ${bankPrefix}`);
       
       // Check registration using the centralized method, which also handles account updates
       const isRegistered = await centralBankService.checkBankRegistration();
       
       if (!isRegistered) {
-        console.log('Bank not found in central bank registry. Attempting to re-register...');
+        logger.info('Bank not found in central bank registry. Attempting to re-register...');
         
         // Pass the current bank prefix for re-registration
         const result = await centralBankService.reRegisterBank(bankPrefix);
-        console.log('Bank re-registration result:', result);
+        logger.info('Bank re-registration result:', { result });
         
         // Force an account number update after re-registration
-        console.log('Verifying account numbers after re-registration...');
+        logger.info('Verifying account numbers after re-registration...');
         await centralBankService.updateOutdatedAccounts(result.bankPrefix || await centralBankService.getOurBankPrefix());
       }
     } catch (error) {
-      console.error('Error checking bank registration:', error);
+      logger.error('Error checking bank registration:', { error: error.message, stack: error.stack });
     }
   }
 }

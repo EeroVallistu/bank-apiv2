@@ -9,6 +9,9 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
 
+// Import logger
+const { logger } = require('./utils/logger');
+
 // Import middleware
 const cache = require('./middleware/cache');
 const errorHandler = require('./middleware/errorHandler');
@@ -23,9 +26,9 @@ try {
   scheduler = require('./utils/scheduler');
   // Start the scheduler
   scheduler.start();
-  console.log('Scheduler started successfully');
+  logger.info('Scheduler started successfully');
 } catch (error) {
-  console.log('Scheduler module not available or not implemented yet');
+  logger.info('Scheduler module not available or not implemented yet');
 }
 
 // Then import routes
@@ -53,7 +56,7 @@ async function checkEnvFileChanges() {
     const mtime = stats.mtimeMs;
     
     if (mtime > envLastModified) {
-      console.log('.env file has been modified, reloading environment variables');
+      logger.info('.env file has been modified, reloading environment variables');
       require('dotenv').config({ override: true });
       envLastModified = mtime;
       return true;
@@ -61,7 +64,7 @@ async function checkEnvFileChanges() {
     
     return false;
   } catch (error) {
-    console.error('Error checking .env file changes:', error);
+    logger.error('Error checking .env file changes:', error);
     return false;
   }
 }
@@ -95,10 +98,10 @@ async function syncSettingsFromEnv() {
       }
     }
     
-    console.log('Environment settings synced to database');
+    logger.info('Environment settings synced to database');
     return false; // No changes made
   } catch (error) {
-    console.error('Failed to sync settings from .env to database:', error);
+    logger.error('Failed to sync settings from .env to database:', error);
     return false;
   }
 }
@@ -115,10 +118,10 @@ function setupEnvWatcher() {
   setInterval(async () => {
     const changed = await checkEnvFileChanges();
     if (changed) {
-      console.log('Environment variables updated, syncing with database');
+      logger.info('Environment variables updated, syncing with database');
       const settingsUpdated = await syncSettingsFromEnv();
       if (settingsUpdated) {
-        console.log('Database settings updated from environment changes');
+        logger.info('Database settings updated from environment changes');
       }
     }
   }, checkInterval);
@@ -192,7 +195,7 @@ app.get('/jwks.json', (req, res) => {
     const jwks = keyManager.getJwks();
     res.status(200).json(jwks);
   } catch (error) {
-    console.error('Error serving JWKS:', error);
+    logger.error('Error serving JWKS:', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Failed to retrieve JWKS' });
   }
 });
@@ -211,7 +214,7 @@ app.post('/admin/sync-settings', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error syncing settings:', error);
+    logger.error('Error syncing settings:', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Failed to sync settings' });
   }
 });
@@ -230,22 +233,22 @@ async function initializeApp() {
     // Check if we should use database
     if (process.env.USE_DATABASE === 'true') {
       // Test database connection
-      console.log('Testing database connection...');
+      logger.info('Testing database connection...');
       const connected = await testConnection();
       
       if (!connected) {
-        console.error('Failed to connect to database. Exiting.');
+        logger.error('Failed to connect to database. Exiting.');
         process.exit(1);
       }
       
       // Sync models with database - only use alter in development mode
-      console.log('Syncing database models...');
+      logger.info('Syncing database models...');
       const shouldAlter = process.env.NODE_ENV === 'development';
       await sequelize.sync({ alter: shouldAlter }); 
-      console.log(`Database sync complete (alter: ${shouldAlter})`);
+      logger.info(`Database sync complete (alter: ${shouldAlter})`);
       
       // Update bank prefix in database to match .env file
-      console.log('Checking bank prefix...');
+      logger.info('Checking bank prefix...');
       await DatabaseSync.syncBankPrefix();
     }
     
@@ -254,13 +257,13 @@ async function initializeApp() {
     
     // Start scheduler for background tasks if available
     if (scheduler && typeof scheduler.start === 'function' && process.env.USE_SCHEDULER !== 'false') {
-      console.log('Starting scheduler for background tasks');
+      logger.info('Starting scheduler for background tasks');
       scheduler.start();
     }
     
     startServer();
   } catch (error) {
-    console.error('Application initialization error:', error);
+    logger.error('Application initialization error:', { error: error.message, stack: error.stack });
     startServer();
   }
 }
@@ -268,8 +271,8 @@ async function initializeApp() {
 // Function to start the server
 function startServer() {
   app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`API Documentation available at http://localhost:${PORT}/docs`);
+    logger.info(`Server running on port ${PORT}`);
+    logger.info(`API Documentation available at http://localhost:${PORT}/docs`);
   });
 }
 

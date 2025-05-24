@@ -9,6 +9,7 @@ const currencyService = require('./currencyService');
 const keyManager = require('../utils/keyManager');
 const jwt = require('jsonwebtoken');
 const { fetch } = require('undici');
+const { logger } = require('../utils/logger');
 const { 
   NotFoundError, 
   ValidationError, 
@@ -113,7 +114,7 @@ class TransactionService {
         }
       };
     } catch (error) {
-      console.error('Error processing incoming transaction:', error);
+      logger.error('Error processing incoming transaction:', { error: error.message, stack: error.stack });
       throw error;
     }
   }
@@ -303,7 +304,7 @@ class TransactionService {
       if (algorithm === 'HS256') {
         // Skip signature verification for HS256 and just return the payload
         // This is a testing/development approach only - not secure for production!
-        console.log('Skipping signature verification for HS256 JWT');
+        logger.warn('Skipping signature verification for HS256 JWT - NOT SECURE FOR PRODUCTION');
         return decoded.payload;
       } 
       // For RS256 and other asymmetric algorithms, use the public key

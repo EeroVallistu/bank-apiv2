@@ -1,4 +1,5 @@
 const { Setting, sequelize } = require('../models');
+const { logger } = require('./logger');
 
 /**
  * Database synchronization utilities
@@ -14,10 +15,10 @@ class DatabaseSync {
       const centralBankService = require('../services/centralBankService');
       const cbBankPrefix = await centralBankService.getOurBankPrefix();
       if (!cbBankPrefix) {
-        console.log('Bank prefix not found in central bank');
+        logger.info('Bank prefix not found in central bank');
         return false;
       }
-      console.log(`Current bank prefix from central bank: ${cbBankPrefix}`);
+      logger.info(`Current bank prefix from central bank: ${cbBankPrefix}`);
       // Get bank prefix from database settings
       let prefixSetting;
       try {
@@ -25,12 +26,12 @@ class DatabaseSync {
           where: { name: 'bank_prefix' }
         });
       } catch (findError) {
-        console.error('Error finding bank_prefix in database:', findError);
+        logger.error('Error finding bank_prefix in database:', { error: findError.message, stack: findError.stack });
         return false;
       }
       if (!prefixSetting) {
         // If no prefix setting exists, create one using direct SQL
-        console.log('Creating new bank_prefix setting in database');
+        logger.info('Creating new bank_prefix setting in database');
         try {
           await sequelize.query(
             `INSERT INTO settings (name, value, description, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())`,
@@ -39,15 +40,15 @@ class DatabaseSync {
               type: sequelize.QueryTypes.INSERT
             }
           );
-          console.log(`Successfully created bank_prefix setting with value: ${cbBankPrefix}`);
+          logger.info(`Successfully created bank_prefix setting with value: ${cbBankPrefix}`);
           return true;
         } catch (insertError) {
-          console.error('Error creating bank_prefix setting:', insertError);
+          logger.error('Error creating bank_prefix setting:', { error: insertError.message, stack: insertError.stack });
           return false;
         }
       } else if (prefixSetting.value !== cbBankPrefix) {
         // Update existing prefix if it doesn't match
-        console.log(`Updating bank prefix in database from '${prefixSetting.value}' to '${cbBankPrefix}'`);
+        logger.info(`Updating bank prefix in database from '${prefixSetting.value}' to '${cbBankPrefix}'`);
         const oldPrefix = prefixSetting.value;
         try {
           // Use direct SQL with explicit debugging
@@ -58,9 +59,9 @@ class DatabaseSync {
               type: sequelize.QueryTypes.UPDATE
             }
           );
-          console.log('SQL update result:', result);
-          console.log(`All accounts with prefix ${oldPrefix} should be updated to ${cbBankPrefix}`);
-          console.log(`This change should be applied automatically by the database trigger 'after_update_bank_prefix'`);
+          logger.info('SQL update result:', { result });
+          logger.info(`All accounts with prefix ${oldPrefix} should be updated to ${cbBankPrefix}`);
+          logger.info(`This change should be applied automatically by the database trigger 'after_update_bank_prefix'`);
           // Verify the update
           const verifyResult = await sequelize.query(
             `SELECT value FROM settings WHERE name = 'bank_prefix'`,
@@ -68,21 +69,21 @@ class DatabaseSync {
               type: sequelize.QueryTypes.SELECT
             }
           );
-          console.log('Verification result:', verifyResult);
+          logger.info('Verification result:', { verifyResult });
           if (verifyResult.length > 0) {
-            console.log(`Current bank_prefix in database: ${verifyResult[0].value}`);
+            logger.info(`Current bank_prefix in database: ${verifyResult[0].value}`);
           }
           return true;
         } catch (updateError) {
-          console.error('Error updating bank_prefix setting:', updateError);
+          logger.error('Error updating bank_prefix setting:', { error: updateError.message, stack: updateError.stack });
           return false;
         }
       } else {
-        console.log(`Bank prefix already up to date in database: ${prefixSetting.value}`);
+        logger.info(`Bank prefix already up to date in database: ${prefixSetting.value}`);
       }
       return false;
     } catch (error) {
-      console.error('Error synchronizing bank prefix:', error);
+      logger.error('Error synchronizing bank prefix:', { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -99,7 +100,7 @@ class DatabaseSync {
       
       return prefixSetting ? prefixSetting.value : null;
     } catch (error) {
-      console.error('Error getting database bank prefix:', error);
+      logger.error('Error getting database bank prefix:', { error: error.message, stack: error.stack });
       return null;
     }
   }

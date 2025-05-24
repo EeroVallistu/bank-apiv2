@@ -1,5 +1,6 @@
 const { Sequelize } = require('sequelize');
 const config = require('../config/database');
+const { logger } = require('../utils/logger');
 
 // Determine the environment
 const env = process.env.NODE_ENV || 'development';
@@ -35,10 +36,10 @@ const sequelize = new Sequelize(
 async function testConnection() {
   try {
     await sequelize.authenticate();
-    console.log('Database connection established successfully.');
+    logger.info('Database connection established successfully.');
     return true;
   } catch (error) {
-    console.error('Unable to connect to the database:', error);
+    logger.error('Unable to connect to the database:', { error: error.message, stack: error.stack });
     return false;
   }
 }
